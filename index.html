@@ -2210,7 +2210,7 @@ function renderVulns(score,grade,crit,high,med){
 
 function mkVulnCard(v){
   var lines=v.matches.slice(0,5).map(function(m){
-    return '<span class="ml"><span style="color:var(--tm);margin-right:7px">L'+m.line+'</span>'+eh(m.context)+'</span>';
+    return '<div class="ml"><span class="ln">L'+m.line+'</span><span class="code-text">'+eh(m.context)+'</span></div>';
   }).join('\n');
 
   var sc={critical:'sc2b',high:'sh2',medium:'sm2',low:'sl2',info:'si2'}[v.sev]||'si2';
@@ -2392,7 +2392,7 @@ function mkCard(f){
       var ve=eh(m.value).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
       ctx=ctx.replace(new RegExp(ve,'gi'),'<span class="mh">'+eh(m.value)+'</span>');
     }catch(e){}
-    return '<span class="ml"><span style="color:var(--tm);margin-right:7px">L'+m.line+'</span>'+ctx+'</span>';
+    return '<div class="ml"><span class="ln">L'+m.line+'</span><span class="code-text">'+ctx+'</span></div>';
   }).join('\n');
   var all=f.matches.map(function(m){return m.value;}).join('\n');
   var sc={critical:'sc2b',high:'sh2',medium:'sm2',low:'sl2',info:'si2'}[f.sev]||'si2';
