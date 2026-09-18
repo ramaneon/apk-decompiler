@@ -1352,6 +1352,101 @@ function instantKeywordSearch(customKws){
 }
 
 /* MANIFEST AUDIT: COMPONENTS, DEEP LINKS, PERMISSIONS */
+
+/* ANDROID BINARY XML (AXML) DECODER FOR PRODUCTION APKs */
+function parseAxml(buffer){
+  try{
+    var view=new DataView(buffer);
+    if(view.byteLength<8)return null;
+    var magic=view.getUint32(0,true);
+    if(magic!==0x00080003)return null;
+
+    var offset=8;
+    var stringTable=[];
+    var xmlOutput='<?xml version="1.0" encoding="utf-8"?>\n';
+    var indent=0;
+    function pad(){var s='';for(var i=0;i<indent;i++)s+='  ';return s;}
+
+    while(offset<buffer.byteLength){
+      var chunkType=view.getUint32(offset,true);
+      var chunkSize=view.getUint32(offset+4,true);
+      if(chunkSize<=0||offset+chunkSize>buffer.byteLength+4)break;
+
+      if(chunkType===0x001C0001){
+        var stringCount=view.getUint32(offset+8,true);
+        var flags=view.getUint32(offset+16,true);
+        var stringsStart=offset+view.getUint32(offset+20,true);
+        var isUtf8=(flags&(1<<8))!==0;
+        var indices=[];
+        for(var i=0;i<stringCount;i++){indices.push(view.getUint32(offset+28+i*4,true));}
+        for(var i=0;i<stringCount;i++){
+          var strOffset=stringsStart+indices[i];
+          if(isUtf8){
+            var len=view.getUint8(strOffset);
+            strOffset+=(len&0x80)?2:1;
+            var bytes=new Uint8Array(buffer,strOffset);
+            var str='';
+            for(var b=0;b<bytes.length&&bytes[b]!==0;b++){str+=String.fromCharCode(bytes[b]);}
+            try{stringTable.push(decodeURIComponent(escape(str)));}catch(e){stringTable.push(str);}
+          }else{
+            var len=view.getUint16(strOffset,true);
+            strOffset+=(len&0x8000)?4:2;
+            var str='';
+            for(var u=0;u<len;u++){
+              var ch=view.getUint16(strOffset+u*2,true);
+              if(ch===0)break;
+              str+=String.fromCharCode(ch);
+            }
+            stringTable.push(str);
+          }
+        }
+      }else if(chunkType===0x00100102){
+        var nameIdx=view.getInt32(offset+20,true);
+        var attrCount=view.getUint16(offset+28,true);
+        var tagName=stringTable[nameIdx]||'tag';
+        xmlOutput+=pad()+'<'+tagName;
+        var curAttrOff=offset+36;
+        for(var a=0;a<attrCount;a++){
+          var aNsIdx=view.getInt32(curAttrOff,true);
+          var aNameIdx=view.getInt32(curAttrOff+4,true);
+          var aValIdx=view.getInt32(curAttrOff+8,true);
+          var aType=view.getUint8(curAttrOff+15);
+          var aData=view.getUint32(curAttrOff+16,true);
+          var aName=stringTable[aNameIdx]||'attr';
+          var aVal='';
+          if(aValIdx>=0&&aValIdx<stringTable.length){
+            aVal=stringTable[aValIdx];
+          }else if(aType===18){aVal=aData!==0?'true':'false';}
+          else if(aType===16){aVal=aData.toString();}
+          else if(aType===17){aVal='0x'+aData.toString(16);}
+          else if(aType===1){aVal='@0x'+aData.toString(16);}
+          else{aVal=aData.toString();}
+          var prefix=(aNsIdx>=0&&stringTable[aNsIdx]&&stringTable[aNsIdx].indexOf('android')!==-1)?'android:':'';
+          xmlOutput+=' '+prefix+aName+'="'+aVal.replace(/"/g,'&quot;')+'"';
+          curAttrOff+=20;
+        }
+        xmlOutput+='>\n';
+        indent++;
+      }else if(chunkType===0x00100103){
+        var nameIdx=view.getInt32(offset+20,true);
+        var tagName=stringTable[nameIdx]||'tag';
+        indent=Math.max(0,indent-1);
+        xmlOutput+=pad()+'</'+tagName+'>\n';
+      }else if(chunkType===0x00100104){
+        var nameIdx=view.getInt32(offset+16,true);
+        if(nameIdx>=0&&nameIdx<stringTable.length){
+          xmlOutput+=pad()+stringTable[nameIdx]+'\n';
+        }
+      }
+      offset+=chunkSize;
+    }
+    return xmlOutput;
+  }catch(e){
+    console.error('AXML decode error:', e);
+    return null;
+  }
+}
+
 function auditManifest(xml){
   var pkgMatch=xml.match(/package\s*=\s*["']([^"']+)["']/i);
   if(pkgMatch)appPkg=pkgMatch[1];
