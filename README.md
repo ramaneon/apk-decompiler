@@ -1,54 +1,55 @@
-# APK Bug Bounty Analyzer — Firebase & Secret Hunter
+# APK Bug Bounty Analyzer — In-Browser MobSF & JADX Toolkit
 
-A free, 100% client-side web tool for Android bug bounty hunters.  
-Upload any .apk file and scan it for Firebase URLs, API keys, hardcoded secrets, and more — all in the browser with zero server-side processing.
+A 100% client-side, zero-install Android security assessment and bug bounty hunting suite that runs directly in your browser on GitHub Pages. Upload any `.apk` file and automatically perform comprehensive static analysis without installing JADX, MobSF, or APKTool.
 
-**Live Tool:** https://ramaneon.github.io/apk-decompiler/
+**Live Application:** https://ramaneon.github.io/apk-decompiler/
 
 ---
 
-## Features
+## Key Capabilities
 
-- **Firebase Detection**: Realtime DB URLs, RTDB default URLs, Storage URLs, API keys, Project IDs, App IDs, Messaging Sender IDs, Storage Buckets
-- **Secret Scanning**: Google API Keys (AIza...), AWS Access Keys, JWT Tokens, Private Keys, Stripe/Slack tokens, OAuth Client IDs
-- **Generic Secrets**: Hardcoded passwords, auth tokens, bearer tokens, client secrets
-- **URL Enumeration**: All HTTP/HTTPS endpoints per file, deduplicated
-- **Custom Keyword Search**: Comma-separated, search any string across the entire APK
-- **Quick Presets**: One-click add of common bug bounty keywords
-- **Manifest Viewer**: AndroidManifest.xml (for debug/re-signed APKs)
-- **File Tree**: Browse all APK contents with filter
-- **Copy to Clipboard**: One-click copy for all findings
-- **Open Read Test Links**: Generates Firebase RTDB /.json URLs for quick public-access testing
+- ⚡ **Instant Auto-Scan**: File drop or browse selection immediately unpacks and analyzes the APK without manual intervention.
+- 🛡️ **MobSF / JADX-Grade Vulnerability Scanner**:
+  - **Cryptography**: Detects `AES/ECB` insecure cipher mode, deprecated legacy ciphers (`DES`, `RC4`, `Blowfish`), collision-prone hashes (`MD5`, `SHA-1`), static/predictable `IvParameterSpec` IVs, and hardcoded `SecretKeySpec` keys in bytecode.
+  - **Network & TLS**: Flags broken `TrustManager` implementations (`TrustAllCerts`), disabled hostname verification (`NullHostnameVerifier`, `ALLOW_ALL_HOSTNAME_VERIFIER`), and cleartext traffic configurations.
+  - **WebView Exploitation**: Identifies exposed JavaScript bridges (`addJavascriptInterface`), cross-origin file access (`setAllowUniversalAccessFromFileURLs`), and SSL error bypasses (`handler.proceed()`).
+  - **Storage & Injection**: Detects `MODE_WORLD_READABLE` / `MODE_WORLD_WRITEABLE` files, dynamic SQLite string concatenation, and sensitive logcat emissions (`Log.d(TAG, token)`).
+- 🚀 **Exported Components & Deep Link Attack Surface**:
+  - Automatically parses manifest components (Activities, Services, Broadcast Receivers) marked `exported="true"`.
+  - Extracts URI schemes, hosts, and paths for Deep Links.
+  - Generates ready-to-run **ADB PoC commands** (e.g. `adb shell am start -W -a android.intent.action.VIEW -d "..." <package>`) with one-click clipboard copying.
+- 🔒 **Dangerous Permissions Audit**:
+  - Audits high-risk Android capabilities (`RECORD_AUDIO`, `READ_SMS`, `ACCESS_FINE_LOCATION`, `SYSTEM_ALERT_WINDOW`, `WRITE_EXTERNAL_STORAGE`).
+  - Highlights exploitation risks and attack surface expansion.
+- 🔑 **API Key & Cloud Secret Discovery**:
+  - **Firebase**: Realtime DB URLs, Storage URLs, API keys (`AIza...`), Project IDs, App IDs, Messaging Sender IDs, and VAPID keys with one-click public access test links (`/.json`).
+  - **Cloud & SaaS**: AWS Access Keys (`AKIA...`) and Secret Keys, Azure Connection Strings & SAS tokens, Google OAuth Client IDs/Secrets, OpenAI / Anthropic / HuggingFace tokens, Stripe Live & Test keys, Razorpay, Slack OAuth & Webhook URLs, Discord Bot tokens, Twilio SID/tokens, SendGrid, Mailgun, Telegram, GitHub & GitLab PATs, Mapbox, and generic Bearer / Basic auth tokens.
+- 🔍 **Instant In-Memory Keyword Search**:
+  - Decompressed text files are retained in memory. Type any custom keyword or click presets (`admin`, `debug`, `test`, `token`, `password`) to filter across the entire APK with zero lag.
+- 📊 **Security Scorecard & Reporting**:
+  - Computes an overall Security Score (0-100) and Letter Grade (A-F) based on CVSS severity weights.
+  - One-click export to **Markdown** (formatted for HackerOne / Bugcrowd reports) and **JSON**.
 
-## How to Use
+---
 
-1. Go to https://ramaneon.github.io/apk-decompiler/
-2. Drag & drop an .apk file (or click Browse)
-3. Optionally add custom keywords in the search box
-4. Click **Analyze APK**
-5. Review findings across the tabs: Firebase, Secrets, Keywords, URLs, Manifest, File Tree
+## Usage
 
-## Deploy to GitHub Pages
+1. Open https://ramaneon.github.io/apk-decompiler/
+2. Drag & drop any `.apk` file onto the drop zone or click **BROWSE APK FILE**.
+3. Analysis executes automatically.
+4. Switch tabs across **Vulnerabilities**, **Components & PoC**, **Permissions**, **Firebase**, **Secrets & Keys**, **Keywords**, **Endpoints**, **Manifest**, and **File Tree**.
+5. Use **EXPORT MARKDOWN** or **EXPORT JSON** to generate vulnerability documentation for bug bounty submissions.
 
-1. Fork or clone this repository
-2. Go to **Settings > Pages** in your GitHub repo
-3. Set **Source** to main branch, root folder (/)
-4. Your tool will be live at https://<username>.github.io/<repo>/
+---
 
-## Technical Details
+## Architecture & Privacy
 
-- **No server**: Pure static HTML/JS, works on any static host
-- **APK extraction**: Uses [JSZip](https://stuk.github.io/jszip/) to parse APK (ZIP format) in-browser
-- **Scanning**: Regex-based pattern matching across all text-readable files (.xml, .json, .java, .kt, .smali, .js, .properties, .gradle, etc.)
-- **Manifest**: Shows AndroidManifest.xml only if it is text-encoded (debug APKs / re-signed). Binary-compiled manifests need decompilation tools like jadx.
+- **100% Client-Side**: All parsing, regex scanning, and decompilation occur entirely inside your browser sandbox using [JSZip](https://stuk.github.io/jszip/).
+- **Zero Telemetry**: No files or extracted secrets are ever transmitted to any remote server or third-party service.
+- **Hosted on GitHub Pages**: Deployable to any static web server or CDN with zero backend setup.
 
-## Limitations
+---
 
-- Binary-compiled AndroidManifest.xml (standard release APKs) shows as unreadable — use jadx for full decompilation
-- .dex, .so files are skipped (binary); use jadx/apktool for smali decompilation
-- Pattern-based scanning, not AST-based — may have false positives
+## Legal Disclaimer
 
-## Legal
-
-This tool is for **authorized security research and bug bounty programs only**.  
-Always get permission before testing. Use responsibly.
+This tool is designed strictly for authorized security research, educational purposes, and approved bug bounty programs. Always obtain explicit written authorization from target asset owners prior to testing.
