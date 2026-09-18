@@ -239,9 +239,9 @@ footer{text-align:center;padding:38px 0 18px;color:var(--tm);font-size:10.5px;z-
     <span class="dico">&#x1F4E6;</span>
     <div class="dtitle">DROP APK HERE</div>
     <p class="dsub">// drag &amp; drop or click to browse &mdash; .apk / .zip &mdash; up to 500MB</p>
-    <button class="bbr" id="bb">&#x1F4C2; BROWSE FILE</button>
-    <input type="file" id="fi" accept=".apk,.zip"/>
+    <button class="bbr" id="bb" type="button">&#x1F4C2; BROWSE FILE</button>
   </div>
+  <input type="file" id="fi" accept=".apk,.xapk,.apks,.zip,application/vnd.android.package-archive,application/zip,application/octet-stream,*/*" style="display:none"/>
 </div>
 <div class="fi2" id="fi2">
   <span style="font-size:26px">&#x1F4E6;</span>
@@ -406,15 +406,42 @@ var findings={firebase:[],apikeys:[],secrets:[],keywords:[],urls:[]};
 
 /* WIRING */
 var dz=document.getElementById('dz'),fi=document.getElementById('fi');
-document.getElementById('bb').addEventListener('click',function(e){e.stopPropagation();fi.click();});
-dz.addEventListener('click',function(){fi.click();});
-dz.addEventListener('dragover',function(e){e.preventDefault();dz.classList.add('dg');});
-dz.addEventListener('dragleave',function(){dz.classList.remove('dg');});
-dz.addEventListener('drop',function(e){
-  e.preventDefault();dz.classList.remove('dg');
-  if(e.dataTransfer.files[0])loadF(e.dataTransfer.files[0]);
+
+function openPicker(e){
+  if(e){
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  fi.click();
+}
+document.getElementById('bb').addEventListener('click',openPicker);
+dz.addEventListener('click',function(e){
+  if(e.target===fi)return;
+  openPicker(e);
 });
-fi.addEventListener('change',function(e){if(e.target.files[0])loadF(e.target.files[0]);});
+
+// Prevent browser from opening dropped files outside drop zone
+window.addEventListener('dragover',function(e){e.preventDefault();},false);
+window.addEventListener('drop',function(e){e.preventDefault();},false);
+
+dz.addEventListener('dragenter',function(e){e.preventDefault();e.stopPropagation();dz.classList.add('dg');});
+dz.addEventListener('dragover',function(e){e.preventDefault();e.stopPropagation();dz.classList.add('dg');});
+dz.addEventListener('dragleave',function(e){e.preventDefault();e.stopPropagation();dz.classList.remove('dg');});
+dz.addEventListener('drop',function(e){
+  e.preventDefault();
+  e.stopPropagation();
+  dz.classList.remove('dg');
+  var f=(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files.length)?e.dataTransfer.files[0]:null;
+  if(f)loadF(f);
+});
+
+fi.addEventListener('click',function(e){e.stopPropagation();});
+fi.addEventListener('change',function(e){
+  if(e.target.files&&e.target.files[0]){
+    loadF(e.target.files[0]);
+    try{fi.value='';}catch(ex){}
+  }
+});
 document.getElementById('aBtn').addEventListener('click',run);
 document.getElementById('kwinp').addEventListener('keydown',function(e){if(e.key==='Enter'&&cf)run();});
 document.querySelectorAll('.pb').forEach(function(b){
@@ -693,7 +720,7 @@ function mkCard(f){
   var sc={critical:'sc2b',high:'sh2',medium:'sm2',low:'sl2',info:'si2'}[f.sev]||'si2';
   var prov=f.provider?'<span class="fprov">'+eh(f.provider)+'</span>':'';
   return '<div class="fc" data-label="'+eh((f.label||'').toLowerCase())+'" data-file="'+eh(f.file.toLowerCase())+'" data-val="'+eh(all.toLowerCase())+'">'+
-    '<div class="fh" onclick="this.parentElement.classList.toggle('exp')">'+
+    '<div class="fh" onclick="this.parentElement.classList.toggle(\'exp\')">'+
     '<span class="sb '+sc+'">'+f.sev+'</span>'+prov+
     '<span class="ft2">'+eh(f.label)+'</span>'+
     '<span class="ff" title="'+eh(f.file)+'">'+eh(f.file.split('/').pop())+'</span>'+
