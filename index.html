@@ -1270,6 +1270,94 @@ var PATS = [
     "cat": "url",
     "label": "URL / Endpoint",
     "provider": ""
+  },
+  {
+    "id": "v_dyn_load",
+    "src": "(?:DexClassLoader|PathClassLoader|InMemoryDexClassLoader|loadClass)\\s*\\(",
+    "flags": "g",
+    "sev": "critical",
+    "cat": "vuln",
+    "label": "Dynamic Code Loading (DCL / DexClassLoader)",
+    "cvss": "8.8",
+    "provider": "Code",
+    "desc": "Application loads secondary Dalvik bytecode dynamically from external or internal files, enabling arbitrary payload execution and tampering."
+  },
+  {
+    "id": "v_mut_intent",
+    "src": "FLAG_MUTABLE",
+    "flags": "g",
+    "sev": "high",
+    "cat": "vuln",
+    "label": "Implicit / Mutable PendingIntent (FLAG_MUTABLE)",
+    "cvss": "7.5",
+    "provider": "IPC",
+    "desc": "Mutable PendingIntents can be intercepted and rewritten by third-party apps to hijack intended actions or access private data."
+  },
+  {
+    "id": "v_weak_rng",
+    "src": "(?:new\\s+Random\\(|Math\\.random\\(\\))",
+    "flags": "gi",
+    "sev": "medium",
+    "cat": "vuln",
+    "label": "Insecure Pseudo-Random Number Generator (PRNG)",
+    "cvss": "5.3",
+    "provider": "Crypto",
+    "desc": "java.util.Random or Math.random is statistically predictable. SecureRandom must be used for salts, tokens, and cryptographic keys."
+  },
+  {
+    "id": "v_insec_proto",
+    "src": "(?:SSLv3|TLSv1\\.0|TLSv1\\.1)",
+    "flags": "gi",
+    "sev": "high",
+    "cat": "vuln",
+    "label": "Deprecated Insecure TLS Protocol (TLSv1.0/1.1/SSLv3)",
+    "cvss": "7.4",
+    "provider": "Network",
+    "desc": "Deprecated transport security versions vulnerable to POODLE, BEAST, and Sweet32 protocol downgrade attacks."
+  },
+  {
+    "id": "v_unsec_broad",
+    "src": "sendBroadcast\\s*\\([^,)]+\\)",
+    "flags": "g",
+    "sev": "medium",
+    "cat": "vuln",
+    "label": "Unprotected Implicit Broadcast Emission",
+    "cvss": "6.2",
+    "provider": "IPC",
+    "desc": "Broadcast intent sent without recipient permission, allowing malicious apps listening to system broadcasts to intercept intent data."
+  },
+  {
+    "id": "v_ext_storage",
+    "src": "getExternalStorageDirectory|getExternalFilesDir|getExternalCacheDir",
+    "flags": "gi",
+    "sev": "medium",
+    "cat": "vuln",
+    "label": "Storage on Public / External Device Path",
+    "cvss": "5.5",
+    "provider": "Storage",
+    "desc": "Application stores files on external storage accessible to any app holding READ_EXTERNAL_STORAGE."
+  },
+  {
+    "id": "v_cert_pin",
+    "src": "(?:CertificatePinner|pin\\s*\\([\"\\']sha256\\/)",
+    "flags": "gi",
+    "sev": "info",
+    "cat": "vuln",
+    "label": "SSL Certificate Pinning Detected (Hardening)",
+    "cvss": "0.0",
+    "provider": "Network",
+    "desc": "Application implements certificate/public-key pinning for enhanced MITM defense."
+  },
+  {
+    "id": "v_root_magisk",
+    "src": "(?:magisk|supersu|daemonsu|busybox|xposed)",
+    "flags": "gi",
+    "sev": "info",
+    "cat": "vuln",
+    "label": "Root / Hooking Framework Artifact Check (Frida/Xposed/Magisk)",
+    "cvss": "2.0",
+    "provider": "Integrity",
+    "desc": "Application looks for root, Magisk, or dynamic instrumentation hooking frameworks."
   }
 ];
 
@@ -1352,6 +1440,59 @@ function instantKeywordSearch(customKws){
 }
 
 /* MANIFEST AUDIT: COMPONENTS, DEEP LINKS, PERMISSIONS */
+
+
+/* PURE JS DALVIK EXECUTABLE (.DEX) STRING POOL EXTRACTOR */
+function extractDexStrings(buffer){
+  try{
+    var view=new DataView(buffer);
+    if(buffer.byteLength<0x70)return [];
+    // Magic: "dex\n"
+    if(view.getUint8(0)!==0x64||view.getUint8(1)!==0x65||view.getUint8(2)!==0x78||view.getUint8(3)!==0x0a)return [];
+
+    var stringIdsSize=view.getUint32(0x38,true);
+    var stringIdsOff=view.getUint32(0x3c,true);
+    if(stringIdsOff<=0||stringIdsOff>=buffer.byteLength)return [];
+
+    var strings=[];
+    var uint8=new Uint8Array(buffer);
+    var maxStrings=Math.min(stringIdsSize,65000);
+
+    for(var i=0;i<maxStrings;i++){
+      var offPtr=stringIdsOff+i*4;
+      if(offPtr+4>buffer.byteLength)break;
+      var strDataOff=view.getUint32(offPtr,true);
+      if(strDataOff<=0||strDataOff>=buffer.byteLength)continue;
+
+      var ptr=strDataOff;
+      var len=0,shift=0;
+      while(ptr<buffer.byteLength){
+        var byte=uint8[ptr++];
+        len|=(byte&0x7f)<<shift;
+        if((byte&0x80)===0)break;
+        shift+=7;
+      }
+
+      var str='';
+      while(ptr<buffer.byteLength){
+        var b=uint8[ptr++];
+        if(b===0)break;
+        if(b>=32&&b<=126){
+          str+=String.fromCharCode(b);
+        }else if(b>=0xc0&&ptr<buffer.byteLength){
+          ptr++;
+        }
+      }
+      if(str.length>=4&&str.length<=2000){
+        strings.push(str);
+      }
+    }
+    return strings;
+  }catch(e){
+    console.error('DEX parsing error:', e);
+    return [];
+  }
+}
 
 /* ANDROID BINARY XML (AXML) DECODER FOR PRODUCTION APKs */
 function parseAxml(buffer){
