@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>APK Hunter v3 — API Key & Secret Scanner</title>
+<meta name="description" content="Free online APK scanner. 60+ API key patterns. Firebase, AWS, OpenAI, Stripe, Slack, Discord, GitHub, and more. 100% client-side."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+
+:root{
+  --bg:#020510;--card:rgba(6,14,35,.88);
+  --b:rgba(0,212,255,.12);--bb:rgba(0,212,255,.4);
+  --neo:#00d4ff;--neo2:#7b2fff;--neo3:#ff2d78;--neo4:#00ff9d;
+  --fire:#ff6b00;--crit:#ff2d2d;--hi:#ff8c00;--med:#ffd700;
+  --tp:#e8f4ff;--ts:#7a9cc0;--tm:#2a4060;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--tp);min-height:100vh;overflow-x:hidden}
+#bg-canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none}
+body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,212,255,.012) 2px,rgba(0,212,255,.012) 4px);pointer-events:none;z-index:1}
+.wrap{position:relative;z-index:2;max-width:1400px;margin:0 auto;padding:0 28px 120px}
+/* HEADER */
+header{text-align:center;padding:80px 0 60px;position:relative}
+.hglow{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:800px;height:400px;background:radial-gradient(ellipse,rgba(0,212,255,.07) 0%,rgba(123,47,255,.04) 40%,transparent 70%);pointer-events:none}
+.logo-ring{display:inline-flex;align-items:center;justify-content:center;width:96px;height:96px;margin-bottom:28px;position:relative}
+.logo-ring::before{content:'';position:absolute;inset:0;border-radius:50%;border:2px solid transparent;background:linear-gradient(135deg,#00d4ff,#7b2fff,#ff2d78) border-box;-webkit-mask:linear-gradient(#fff 0 0) padding-box,linear-gradient(#fff 0 0);-webkit-mask-composite:destination-out;mask-composite:exclude;animation:spin1 4s linear infinite}
+.logo-ring::after{content:'';position:absolute;inset:6px;border-radius:50%;border:1px solid rgba(0,212,255,.25);animation:spin1 7s linear infinite reverse}
+@keyframes spin1{to{transform:rotate(360deg)}}
+.lico{font-size:40px;filter:drop-shadow(0 0 14px rgba(0,212,255,.8));animation:ipulse 2s ease-in-out infinite}
+@keyframes ipulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+h1{font-family:'Orbitron',sans-serif;font-size:clamp(2rem,5vw,3.8rem);font-weight:900;letter-spacing:3px;background:linear-gradient(135deg,#00d4ff 0%,#fff 30%,#7b2fff 60%,#ff2d78 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;background-size:200% auto;animation:shimmer 5s linear infinite;margin-bottom:10px}
+@keyframes shimmer{0%{background-position:0% center}100%{background-position:200% center}}
+.tsub{font-family:'Orbitron',sans-serif;font-size:.8rem;letter-spacing:5px;color:var(--neo);opacity:.55;text-transform:uppercase;margin-bottom:14px}
+.desc{font-size:1rem;color:var(--ts);max-width:660px;margin:0 auto 20px;line-height:1.7}
+.htags{display:flex;justify-content:center;flex-wrap:wrap;gap:7px;margin-bottom:36px}
+.htag{font-family:'JetBrains Mono',monospace;font-size:10px;padding:4px 13px;border-radius:4px;border:1px solid rgba(0,212,255,.18);color:rgba(0,212,255,.65);background:rgba(0,212,255,.03);letter-spacing:.4px;cursor:default;transition:all .25s}
+.htag:hover{border-color:var(--neo);color:var(--neo);background:rgba(0,212,255,.07)}
+/* HUD */
+.hud{display:flex;gap:14px;align-items:center;justify-content:center;margin-bottom:44px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ts)}
+.hdot{width:6px;height:6px;border-radius:50%;background:var(--neo4);box-shadow:0 0 7px var(--neo4);animation:blink 1.5s ease-in-out infinite;flex-shrink:0}
+.hdot.b{background:var(--neo);box-shadow:0 0 7px var(--neo)}
+.hdot.y{background:#ffd700;box-shadow:0 0 7px #ffd700;animation:none}
+.hsep{width:1px;height:14px;background:var(--b)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+/* UPLOAD */
+.zw{perspective:1200px;margin-bottom:24px}
+.dz{border-radius:22px;padding:60px 40px;text-align:center;cursor:pointer;background:var(--card);border:1px solid rgba(0,212,255,.18);backdrop-filter:blur(20px);transition:transform .4s cubic-bezier(.2,.8,.2,1),box-shadow .4s,border-color .4s;position:relative;overflow:hidden}
+.dz::before{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:conic-gradient(transparent 65%,rgba(0,212,255,.05) 80%,transparent 100%);animation:radar 8s linear infinite;pointer-events:none}
+@keyframes radar{to{transform:rotate(360deg)}}
+.dz:hover,.dz.dg{transform:rotateX(2deg) rotateY(-1.5deg) translateZ(8px);box-shadow:0 28px 70px rgba(0,212,255,.12),0 0 0 1px rgba(0,212,255,.35);border-color:rgba(0,212,255,.5)}
+.dz.dg{animation:bflick .2s ease-in-out infinite alternate}
+@keyframes bflick{from{box-shadow:0 0 20px rgba(0,212,255,.15)}to{box-shadow:0 0 50px rgba(0,212,255,.35),0 0 0 1px rgba(0,212,255,.7)}}
+.dico{font-size:68px;display:block;margin-bottom:18px;filter:drop-shadow(0 0 20px rgba(0,212,255,.55));animation:fl3 3s ease-in-out infinite}
+@keyframes fl3{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+.dtitle{font-family:'Orbitron',sans-serif;font-size:1.3rem;font-weight:700;margin-bottom:6px;color:var(--tp);letter-spacing:1px}
+.dsub{color:var(--ts);margin-bottom:24px;font-size:.85rem;font-family:'JetBrains Mono',monospace}
+.bbr{display:inline-flex;align-items:center;gap:9px;background:rgba(0,212,255,.08);color:var(--neo);border:1px solid rgba(0,212,255,.45);border-radius:10px;padding:12px 30px;font-size:13px;font-weight:700;cursor:pointer;transition:all .25s;font-family:'Orbitron',sans-serif;letter-spacing:1px}
+.bbr:hover{background:rgba(0,212,255,.14);box-shadow:0 0 25px rgba(0,212,255,.3);transform:translateY(-2px)}
+#fi{display:none}
+/* FILE INFO */
+.fi2{display:none;align-items:center;gap:12px;margin-bottom:22px;padding:13px 18px;background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.18);border-radius:12px;animation:fadin .3s ease}
+.fi2.vis{display:flex}
+@keyframes fadin{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
+.fname{font-family:'JetBrains Mono',monospace;color:var(--neo);font-size:13px;font-weight:600}
+.fsize{color:var(--ts);font-size:11px;margin-top:2px}
+/* INPUTS */
+.srow{display:grid;grid-template-columns:1fr auto;gap:12px;margin-bottom:14px}
+.sinp{background:rgba(0,8,25,.85);border:1px solid rgba(0,212,255,.18);border-radius:11px;padding:13px 18px;font-size:13px;color:var(--tp);font-family:'JetBrains Mono',monospace;width:100%;transition:all .25s;outline:none}
+.sinp:focus{border-color:var(--neo);box-shadow:0 0 0 3px rgba(0,212,255,.08)}
+.sinp::placeholder{color:var(--tm)}
+.brun{background:linear-gradient(135deg,#ff6b00,#ff2d78);color:#fff;border:none;border-radius:11px;padding:13px 30px;font-size:13px;font-weight:700;cursor:pointer;transition:all .25s;white-space:nowrap;font-family:'Orbitron',sans-serif;letter-spacing:1px}
+.brun:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 8px 28px rgba(255,45,120,.45)}
+.brun:disabled{opacity:.3;cursor:not-allowed}
+/* LIVE SEARCH */
+.lsr{display:flex;gap:10px;align-items:center;margin-bottom:18px}
+.lsl{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--neo);white-space:nowrap;letter-spacing:.5px}
+.lsi{background:rgba(0,8,25,.7);border:1px solid rgba(123,47,255,.2);border-radius:9px;padding:9px 15px;font-size:12px;color:var(--tp);font-family:'JetBrains Mono',monospace;flex:1;outline:none;transition:all .25s}
+.lsi:focus{border-color:var(--neo2);box-shadow:0 0 0 3px rgba(123,47,255,.08)}
+.lsi::placeholder{color:var(--tm)}
+/* PRESETS */
+.presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:26px;align-items:center}
+.plbl{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--tm);margin-right:4px;text-transform:uppercase;letter-spacing:.5px}
+.pb{background:rgba(0,8,25,.6);border:1px solid rgba(0,212,255,.14);border-radius:6px;padding:5px 12px;font-size:11px;font-family:'JetBrains Mono',monospace;color:rgba(0,212,255,.55);cursor:pointer;transition:all .2s}
+.pb:hover{border-color:var(--neo);color:var(--neo);background:rgba(0,212,255,.06);transform:translateY(-1px)}
+/* PROGRESS */
+#prog{display:none;margin-bottom:26px}
+#prog.vis{display:block;animation:fadin .3s ease}
+.pcard{background:var(--card);border:1px solid rgba(0,212,255,.22);border-radius:16px;padding:22px 26px;backdrop-filter:blur(20px);position:relative;overflow:hidden}
+.pcard::after{content:'SCANNING';position:absolute;top:12px;right:16px;font-family:'Orbitron',sans-serif;font-size:8px;letter-spacing:3px;color:rgba(0,212,255,.35);animation:blink 1s ease-in-out infinite}
+.psweep{position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,255,.8),transparent);top:0;animation:sweep 2s ease-in-out infinite}
+@keyframes sweep{0%{top:0;opacity:0}10%{opacity:1}90%{opacity:1}100%{top:100%;opacity:0}}
+.ph{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.ptitle{font-family:'Orbitron',sans-serif;font-size:.8rem;color:var(--neo);letter-spacing:1px;font-weight:600}
+.ppct{font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--neo)}
+.pbw{background:rgba(0,212,255,.05);border-radius:100px;height:4px;overflow:hidden;margin-bottom:14px}
+#pb{height:100%;background:linear-gradient(90deg,#00d4ff,#7b2fff,#ff2d78);border-radius:100px;width:0%;transition:width .3s;box-shadow:0 0 10px rgba(0,212,255,.5)}
+.plog{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--tm);max-height:80px;overflow-y:auto}
+.pl.a{color:var(--neo)}
+/* STATS */
+#stats{display:none;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:14px;margin-bottom:30px}
+#stats.vis{display:grid;animation:fadin .4s ease}
+.sc{background:var(--card);border-radius:14px;padding:20px 16px;text-align:center;border:1px solid var(--b);backdrop-filter:blur(16px);position:relative;overflow:hidden;cursor:default;transition:transform .3s,box-shadow .3s}
+.sc::after{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.sc:hover{transform:translateY(-4px);box-shadow:0 16px 50px rgba(0,0,0,.45)}
+.sc.sf::after{background:linear-gradient(90deg,#ff6b00,#ff9500)}
+.sc.sc2::after{background:linear-gradient(90deg,#ff2d2d,#ff7070)}
+.sc.sa::after{background:linear-gradient(90deg,#00d4ff,#4fd1c5)}
+.sc.sk::after{background:linear-gradient(90deg,#7b2fff,#b794f4)}
+.sc.ss::after{background:linear-gradient(90deg,#00ff9d,#68d391)}
+.sn{font-family:'Orbitron',monospace;font-size:2rem;font-weight:900;margin-bottom:5px}
+.sc.sf .sn{color:#ff6b00;text-shadow:0 0 18px rgba(255,107,0,.45)}
+.sc.sc2 .sn{color:#ff2d2d;text-shadow:0 0 18px rgba(255,45,45,.45)}
+.sc.sa .sn{color:#00d4ff;text-shadow:0 0 18px rgba(0,212,255,.45)}
+.sc.sk .sn{color:#7b2fff;text-shadow:0 0 18px rgba(123,47,255,.45)}
+.sc.ss .sn{color:#00ff9d;text-shadow:0 0 18px rgba(0,255,157,.45)}
+.sl{font-family:'Orbitron',sans-serif;font-size:8.5px;color:var(--tm);text-transform:uppercase;letter-spacing:1.5px}
+/* TABS */
+.tabs{display:flex;gap:2px;margin-bottom:18px;background:rgba(0,5,20,.8);border:1px solid rgba(0,212,255,.1);border-radius:13px;padding:4px;overflow-x:auto;backdrop-filter:blur(16px)}
+.tb{flex-shrink:0;padding:8px 16px;border-radius:9px;border:none;background:transparent;color:var(--tm);font-size:11.5px;font-weight:600;cursor:pointer;transition:all .22s;display:flex;align-items:center;gap:5px;font-family:'Orbitron',sans-serif;letter-spacing:.4px}
+.tb.on{color:var(--neo);background:rgba(0,212,255,.09);box-shadow:0 0 16px rgba(0,212,255,.08)}
+.tb.ft.on{color:#ff6b00;background:rgba(255,107,0,.09)}
+.tb.at.on{color:#7b2fff;background:rgba(123,47,255,.09)}
+.tb:not(.on):hover{color:var(--ts);background:rgba(255,255,255,.03)}
+.tc{border-radius:100px;padding:1px 7px;font-size:9.5px;font-family:'JetBrains Mono',monospace;background:rgba(0,212,255,.1);color:var(--neo);border:1px solid rgba(0,212,255,.18)}
+.tb.ft .tc{background:rgba(255,107,0,.1);color:#ff6b00;border-color:rgba(255,107,0,.2)}
+.tb.at .tc{background:rgba(123,47,255,.1);color:#7b2fff;border-color:rgba(123,47,255,.2)}
+/* PANELS */
+#ra{display:none}.ra.vis{display:block;animation:fadin .4s ease}
+.pan{display:none}.pan.on{display:block}
+.fl{display:flex;flex-direction:column;gap:10px}
+/* FINDING CARD */
+.fc{background:var(--card);border:1px solid rgba(0,212,255,.09);border-radius:14px;overflow:hidden;transition:all .28s;backdrop-filter:blur(14px);animation:cin .3s ease forwards;position:relative}
+.fc::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,255,.35),transparent);opacity:0;transition:opacity .25s}
+@keyframes cin{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.fc:hover{border-color:rgba(0,212,255,.25);transform:translateY(-2px);box-shadow:0 16px 50px rgba(0,0,0,.35),0 0 0 1px rgba(0,212,255,.12)}
+.fc:hover::before{opacity:1}
+.fh{display:flex;align-items:center;gap:9px;padding:13px 16px;cursor:pointer;user-select:none}
+.sb{padding:3px 9px;border-radius:5px;font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:1px;flex-shrink:0;font-family:'Orbitron',sans-serif}
+.sc2b{background:rgba(255,45,45,.12);color:#ff2d2d;border:1px solid rgba(255,45,45,.28)}
+.sh2{background:rgba(255,140,0,.1);color:#ff8c00;border:1px solid rgba(255,140,0,.28)}
+.sm2{background:rgba(255,215,0,.09);color:#ffd700;border:1px solid rgba(255,215,0,.25)}
+.sl2{background:rgba(0,255,157,.09);color:#00ff9d;border:1px solid rgba(0,255,157,.25)}
+.si2{background:rgba(0,170,255,.09);color:#00aaff;border:1px solid rgba(0,170,255,.25)}
+.ft2{font-weight:600;font-size:.86rem;flex:1;letter-spacing:.2px}
+.fprov{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--neo);border:1px solid rgba(0,212,255,.18);border-radius:4px;padding:1px 7px;flex-shrink:0;background:rgba(0,212,255,.04)}
+.ff{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--tm);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-left:auto}
+.chv{color:var(--tm);transition:transform .22s;flex-shrink:0;font-size:11px}
+.fc.exp .chv{transform:rotate(180deg);color:var(--neo)}
+.fb2{display:none;padding:0 16px 16px;animation:fadin .2s ease}
+.fc.exp .fb2{display:block}
+.mb{background:rgba(0,4,14,.85);border-radius:9px;padding:12px 14px;margin-top:12px;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.85;overflow-x:auto;border:1px solid rgba(0,212,255,.07);white-space:pre-wrap;word-break:break-all;max-height:280px;overflow-y:auto}
+.ml{display:block;padding:2px 4px;border-radius:3px}
+.ml:hover{background:rgba(0,212,255,.04)}
+.mh{background:rgba(255,107,0,.18);color:#ff9a3c;border-radius:3px;padding:0 3px;font-weight:700}
+.cb{display:inline-flex;align-items:center;gap:5px;margin-top:9px;background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.18);border-radius:7px;padding:5px 12px;font-size:11px;color:rgba(0,212,255,.65);cursor:pointer;transition:all .18s;font-family:'JetBrains Mono',monospace}
+.cb:hover{border-color:var(--neo);color:var(--neo);background:rgba(0,212,255,.07)}
+.cb.ok{border-color:#00ff9d;color:#00ff9d}
+/* FIREBASE HERO */
+.fbhero{background:linear-gradient(135deg,rgba(255,107,0,.07),rgba(255,45,120,.03));border:1px solid rgba(255,107,0,.25);border-radius:16px;padding:22px;margin-bottom:18px;display:flex;align-items:flex-start;gap:14px;backdrop-filter:blur(16px);position:relative;overflow:hidden}
+.fbico{font-size:42px;flex-shrink:0;filter:drop-shadow(0 0 14px rgba(255,107,0,.55));animation:ipulse 2s ease-in-out infinite}
+.fbhero h3{font-family:'Orbitron',sans-serif;font-size:.95rem;font-weight:700;color:#ff6b00;margin-bottom:8px;letter-spacing:1px}
+.fbulist{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.fbui{background:rgba(0,0,0,.35);border:1px solid rgba(255,107,0,.18);border-radius:7px;padding:9px 13px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#ff9a3c;display:flex;align-items:center;justify-content:space-between;gap:8px;word-break:break-all;transition:all .2s}
+.fbui:hover{border-color:rgba(255,107,0,.4)}
+.testlinks{background:rgba(255,107,0,.04);border:1px solid rgba(255,107,0,.18);border-radius:11px;padding:14px;margin-bottom:16px}
+.tltitle{font-family:'Orbitron',sans-serif;font-size:10px;color:#ff6b00;margin-bottom:9px;letter-spacing:1px}
+.tlitem{margin-bottom:5px;font-family:'JetBrains Mono',monospace;font-size:11px}
+.tlitem a{color:#ff9a3c;text-decoration:none;transition:color .2s}
+.tlitem a:hover{color:#ffb874;text-decoration:underline}
+/* API HERO */
+.akhero{background:linear-gradient(135deg,rgba(123,47,255,.07),rgba(0,212,255,.03));border:1px solid rgba(123,47,255,.25);border-radius:16px;padding:22px;margin-bottom:18px;backdrop-filter:blur(16px)}
+.akhero h3{font-family:'Orbitron',sans-serif;font-size:.95rem;font-weight:700;color:#7b2fff;margin-bottom:8px;letter-spacing:1px}
+.akgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:7px;margin-top:10px}
+.akitem{background:rgba(0,4,14,.7);border:1px solid rgba(123,47,255,.18);border-radius:9px;padding:11px 13px;transition:all .2s;position:relative;overflow:hidden}
+.akitem::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(123,47,255,.45),transparent)}
+.akitem:hover{border-color:rgba(123,47,255,.4);transform:translateY(-2px)}
+.aklbl{font-family:'Orbitron',sans-serif;font-size:8.5px;color:#7b2fff;margin-bottom:4px;letter-spacing:1px;text-transform:uppercase}
+.akval{font-family:'JetBrains Mono',monospace;font-size:11px;color:#d6bcfa;word-break:break-all;margin-bottom:6px;line-height:1.45}
+/* FILE TREE */
+.ftree{background:var(--card);border:1px solid var(--b);border-radius:14px;padding:14px;backdrop-filter:blur(16px)}
+.ftlist{max-height:460px;overflow-y:auto;margin-top:10px}
+.ti{padding:5px 8px;border-radius:5px;color:var(--ts);display:flex;align-items:center;gap:7px;font-family:'JetBrains Mono',monospace;font-size:11.5px;transition:all .13s;cursor:default}
+.ti:hover{background:rgba(0,212,255,.04);color:var(--neo)}
+/* EMPTY */
+.empty{text-align:center;padding:56px 20px;color:var(--tm)}
+.eico{font-size:44px;display:block;margin-bottom:12px;opacity:.3;filter:grayscale(1)}
+.etxt{font-family:'JetBrains Mono',monospace;font-size:12px}
+/* MANIFEST */
+.mfh{font-family:'Orbitron',sans-serif;font-size:10px;color:var(--ts);margin-bottom:9px;letter-spacing:1px}
+/* SCROLLBAR */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-thumb{background:rgba(0,212,255,.18);border-radius:2px}
+/* FOOTER */
+footer{text-align:center;padding:38px 0 18px;color:var(--tm);font-size:10.5px;z-index:2;position:relative;border-top:1px solid rgba(0,212,255,.06);margin-top:36px;font-family:'JetBrains Mono',monospace;letter-spacing:.5px}
+@media(max-width:640px){.srow{grid-template-columns:1fr}.ff{display:none}header{padding:44px 0 28px}}
+
+</style>
+</head>
+<body>
+<canvas id="bg-canvas"></canvas>
+<div class="wrap">
+
+<header>
+  <div class="hglow"></div>
+  <div class="logo-ring"><span class="lico">&#x1F4E6;</span></div>
+  <h1>APK HUNTER</h1>
+  <div class="tsub">API Key &amp; Secret Scanner v3</div>
+  <p class="desc">Upload any APK and scan for 60+ exposed API keys, Firebase URLs, AWS credentials, OAuth tokens, database URIs, and hardcoded secrets. Zero data leaves your browser.</p>
+  <div class="htags">
+    <span class="htag">&#x1F525; Firebase</span>
+    <span class="htag">&#x1F916; OpenAI / Claude / HF</span>
+    <span class="htag">&#x2601; AWS / Azure / GCP</span>
+    <span class="htag">&#x1F4B3; Stripe / Razorpay</span>
+    <span class="htag">&#x1F4AC; Slack / Twilio / Discord</span>
+    <span class="htag">&#x1F419; GitHub / GitLab</span>
+    <span class="htag">&#x1F5C4; MongoDB / Postgres / Redis</span>
+    <span class="htag">&#x26A1; JWT / Bearer / Basic Auth</span>
+    <span class="htag">&#x1F50D; Live Keyword Filter</span>
+    <span class="htag">&#x1F6E1; 100% Client-Side</span>
+  </div>
+</header>
+
+<div class="hud" id="hud">
+  <span class="hdot"></span><span>SYSTEM ONLINE</span>
+  <span class="hsep"></span>
+  <span class="hdot b"></span><span>60+ PATTERNS LOADED</span>
+  <span class="hsep"></span>
+  <span class="hdot" style="background:#ff2d2d;box-shadow:0 0 7px #ff2d2d;animation:none;opacity:.4"></span><span>NO DATA TRANSMITTED</span>
+</div>
+
+<div class="zw">
+  <div class="dz" id="dz">
+    <span class="dico">&#x1F4E6;</span>
+    <div class="dtitle">DROP APK HERE</div>
+    <p class="dsub">// drag &amp; drop or click to browse &mdash; .apk / .zip &mdash; up to 500MB</p>
+    <button class="bbr" id="bb">&#x1F4C2; BROWSE FILE</button>
+    <input type="file" id="fi" accept=".apk,.zip"/>
+  </div>
+</div>
+<div class="fi2" id="fi2">
+  <span style="font-size:26px">&#x1F4E6;</span>
+  <div style="flex:1">
+    <div class="fname" id="fn"></div>
+    <div class="fsize" id="fs"></div>
+  </div>
+  <span style="font-family:'Orbitron',sans-serif;font-size:9px;color:#00ff9d;letter-spacing:2px">LOADED &#x2713;</span>
+</div>
+
+<div class="srow">
+  <input type="text" class="sinp" id="kwinp" placeholder="// Custom keywords, comma-separated — e.g. db_password, PRIVATE_KEY, internal_api, encrypt ..."/>
+  <button class="brun" id="aBtn" disabled>&#x1F525; SCAN APK</button>
+</div>
+
+<div class="presets">
+  <span class="plbl">presets:</span>
+  <button class="pb" data-v="password">password</button>
+  <button class="pb" data-v="secret">secret</button>
+  <button class="pb" data-v="api_key">api_key</button>
+  <button class="pb" data-v="token">token</button>
+  <button class="pb" data-v="private_key">private_key</button>
+  <button class="pb" data-v="database_url">database_url</button>
+  <button class="pb" data-v="client_secret">client_secret</button>
+  <button class="pb" data-v="access_key">access_key</button>
+  <button class="pb" data-v="Authorization">Authorization</button>
+  <button class="pb" data-v="Bearer">Bearer</button>
+  <button class="pb" data-v="encrypt">encrypt</button>
+  <button class="pb" data-v="certificate">certificate</button>
+  <button class="pb" data-v="webhook">webhook</button>
+</div>
+
+<div id="prog">
+  <div class="pcard">
+    <div class="psweep"></div>
+    <div class="ph">
+      <span class="ptitle" id="ptitle">INITIALIZING...</span>
+      <span class="ppct" id="ppct">0%</span>
+    </div>
+    <div class="pbw"><div id="pb"></div></div>
+    <div class="plog" id="plog"></div>
+  </div>
+</div>
+
+<div id="stats">
+  <div class="sc sf"><div class="sn" id="stF">0</div><div class="sl">Firebase URLs</div></div>
+  <div class="sc sc2"><div class="sn" id="stC">0</div><div class="sl">Critical Hits</div></div>
+  <div class="sc sa"><div class="sn" id="stA">0</div><div class="sl">API Keys</div></div>
+  <div class="sc sk"><div class="sn" id="stK">0</div><div class="sl">Keyword Hits</div></div>
+  <div class="sc ss"><div class="sn" id="stS">0</div><div class="sl">Files Scanned</div></div>
+</div>
+
+<div id="ra">
+  <div class="lsr">
+    <span class="lsl">// LIVE FILTER:</span>
+    <input type="text" class="lsi" id="lsf" placeholder="Filter results by type, provider, filename, or value..."/>
+  </div>
+  <div class="tabs">
+    <button class="tb ft on" data-tab="firebase">&#x1F525; Firebase <span class="tc" id="cFire">0</span></button>
+    <button class="tb at" data-tab="apikeys">&#x1F511; API Keys <span class="tc" id="cAPI">0</span></button>
+    <button class="tb" data-tab="secrets">&#x1F510; Secrets <span class="tc" id="cSec">0</span></button>
+    <button class="tb" data-tab="keywords">&#x1F50D; Keywords <span class="tc" id="cKw">0</span></button>
+    <button class="tb" data-tab="urls">&#x1F310; URLs <span class="tc" id="cUrl">0</span></button>
+    <button class="tb" data-tab="manifest">&#x1F4CB; Manifest</button>
+    <button class="tb" data-tab="files">&#x1F4C1; Files <span class="tc" id="cFiles">0</span></button>
+  </div>
+  <div class="pan on" id="pan-firebase"><div id="fbContent"></div></div>
+  <div class="pan" id="pan-apikeys"><div id="akContent"></div></div>
+  <div class="pan" id="pan-secrets"><div class="fl" id="secContent"></div></div>
+  <div class="pan" id="pan-keywords"><div class="fl" id="kwContent"></div></div>
+  <div class="pan" id="pan-urls"><div class="fl" id="urlContent"></div></div>
+  <div class="pan" id="pan-manifest"><div id="mfContent"></div></div>
+  <div class="pan" id="pan-files">
+    <div class="ftree">
+      <div style="font-family:'Orbitron',sans-serif;font-size:10px;color:var(--ts);margin-bottom:10px;letter-spacing:1px">// FILE TREE</div>
+      <input class="sinp" id="tfs" placeholder="Filter files..." style="margin-bottom:6px"/>
+      <div class="ftlist" id="ftl"></div>
+    </div>
+  </div>
+</div>
+</div>
+<footer>// APK HUNTER v3 &mdash; 100% CLIENT-SIDE &mdash; NO DATA TRANSMITTED &mdash; FOR AUTHORIZED SECURITY RESEARCH ONLY</footer>
+
+<script>
+(function(){
+  var W=window.innerWidth,H=window.innerHeight;
+  var scene=new THREE.Scene();
+  var cam=new THREE.PerspectiveCamera(70,W/H,.1,800);
+  cam.position.z=90;
+  var renderer=new THREE.WebGLRenderer({canvas:document.getElementById('bg-canvas'),alpha:true,antialias:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer.setSize(W,H);
+
+  var N=100;
+  var pos=new Float32Array(N*3);
+  var vel=[];
+  for(var i=0;i<N;i++){
+    pos[i*3]=(Math.random()-.5)*180;
+    pos[i*3+1]=(Math.random()-.5)*160;
+    pos[i*3+2]=(Math.random()-.5)*40;
+    vel.push({x:(Math.random()-.5)*.07,y:(Math.random()-.5)*.07});
+  }
+  var pg=new THREE.BufferGeometry();
+  pg.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  var pm=new THREE.PointsMaterial({size:1.4,color:0x00d4ff,transparent:true,opacity:.65,sizeAttenuation:true});
+  var pts=new THREE.Points(pg,pm);
+  scene.add(pts);
+
+  var lineObjs=[];
+  function mkLines(){
+    lineObjs.forEach(function(l){scene.remove(l);});lineObjs=[];
+    for(var i=0;i<N;i++){
+      for(var j=i+1;j<N;j++){
+        var dx=pos[i*3]-pos[j*3],dy=pos[i*3+1]-pos[j*3+1];
+        var d=Math.sqrt(dx*dx+dy*dy);
+        if(d<32){
+          var lg=new THREE.BufferGeometry();
+          var lp=new Float32Array(6);
+          lp[0]=pos[i*3];lp[1]=pos[i*3+1];lp[2]=pos[i*3+2];
+          lp[3]=pos[j*3];lp[4]=pos[j*3+1];lp[5]=pos[j*3+2];
+          lg.setAttribute('position',new THREE.BufferAttribute(lp,3));
+          var lm=new THREE.LineBasicMaterial({color:0x00d4ff,transparent:true,opacity:Math.max(0,.1*(1-d/32))});
+          var l=new THREE.Line(lg,lm);scene.add(l);lineObjs.push(l);
+        }
+      }
+    }
+  }
+  mkLines();
+
+  var mx=0,my=0;
+  window.addEventListener('mousemove',function(e){mx=(e.clientX/window.innerWidth-.5)*2;my=(e.clientY/window.innerHeight-.5)*2;});
+  window.addEventListener('resize',function(){
+    cam.aspect=window.innerWidth/window.innerHeight;cam.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth,window.innerHeight);
+  });
+
+  var fc=0,t=0;
+  function anim(){
+    requestAnimationFrame(anim);t+=.004;
+    for(var i=0;i<N;i++){
+      pos[i*3]+=vel[i].x;pos[i*3+1]+=vel[i].y;
+      if(pos[i*3]>90||pos[i*3]<-90)vel[i].x*=-1;
+      if(pos[i*3+1]>80||pos[i*3+1]<-80)vel[i].y*=-1;
+    }
+    pg.attributes.position.needsUpdate=true;
+    fc++;if(fc>50){mkLines();fc=0;}
+    cam.position.x+=(mx*6-cam.position.x)*.028;
+    cam.position.y+=(-my*4-cam.position.y)*.028;
+    cam.lookAt(scene.position);
+    pts.rotation.y=t*.04;
+    renderer.render(scene,cam);
+  }
+  anim();
+})();
+</script>
+
+<script>
+(function(){
+'use strict';
+var cf=null,allFiles=[],mfXml='';
+var findings={firebase:[],apikeys:[],secrets:[],keywords:[],urls:[]};
+
+/* WIRING */
+var dz=document.getElementById('dz'),fi=document.getElementById('fi');
+document.getElementById('bb').addEventListener('click',function(e){e.stopPropagation();fi.click();});
+dz.addEventListener('click',function(){fi.click();});
+dz.addEventListener('dragover',function(e){e.preventDefault();dz.classList.add('dg');});
+dz.addEventListener('dragleave',function(){dz.classList.remove('dg');});
+dz.addEventListener('drop',function(e){
+  e.preventDefault();dz.classList.remove('dg');
+  if(e.dataTransfer.files[0])loadF(e.dataTransfer.files[0]);
+});
+fi.addEventListener('change',function(e){if(e.target.files[0])loadF(e.target.files[0]);});
+document.getElementById('aBtn').addEventListener('click',run);
+document.getElementById('kwinp').addEventListener('keydown',function(e){if(e.key==='Enter'&&cf)run();});
+document.querySelectorAll('.pb').forEach(function(b){
+  b.addEventListener('click',function(){
+    var i=document.getElementById('kwinp'),c=i.value.trim();
+    i.value=c?(c.includes(b.dataset.v)?c:c+','+b.dataset.v):b.dataset.v;i.focus();
+  });
+});
+document.querySelectorAll('.tb').forEach(function(b){b.addEventListener('click',function(){switchTab(b.dataset.tab);});});
+document.getElementById('tfs').addEventListener('input',filterTree);
+document.getElementById('lsf').addEventListener('input',liveFilter);
+
+function loadF(f){
+  cf=f;
+  document.getElementById('fn').textContent=f.name;
+  document.getElementById('fs').textContent=fmtB(f.size)+' — ready to scan';
+  document.getElementById('fi2').classList.add('vis');
+  document.getElementById('aBtn').disabled=false;
+  document.getElementById('hud').innerHTML='<span class="hdot"></span><span>SYSTEM ONLINE</span><span class="hsep"></span><span class="hdot b"></span><span>60+ PATTERNS LOADED</span><span class="hsep"></span><span class="hdot y"></span><span>APK LOADED</span>';
+}
+
+/* PATTERNS */
+var PATS=[
+
+  {id:'fb_rtdb',     src:'https?:\\/\\/[a-zA-Z0-9_-]+\\.firebaseio\\.com[^\\s"\'<>\\)]*',          flags:'gi',sev:'critical',cat:'firebase',label:'Firebase Realtime DB URL',        provider:'Firebase'},
+  {id:'fb_rtdb2',    src:'https?:\\/\\/[a-zA-Z0-9_-]+-default-rtdb\\.firebaseio\\.com[^\\s"\'<>]*', flags:'gi',sev:'critical',cat:'firebase',label:'Firebase RTDB Default URL',         provider:'Firebase'},
+  {id:'fb_storage',  src:'https?:\\/\\/[a-zA-Z0-9_-]+\\.appspot\\.com[^\\s"\'<>]*',                 flags:'gi',sev:'high',    cat:'firebase',label:'Firebase Storage URL',              provider:'Firebase'},
+  {id:'fb_gkey',     src:'AIza[0-9A-Za-z_\\-]{35}',                                                  flags:'g', sev:'critical',cat:'firebase',label:'Google/Firebase API Key (AIza)',  provider:'Google'},
+  {id:'fb_proj',     src:'"projectId"\\s*:\\s*"([a-z0-9_-]{4,30})"',                                flags:'gi',sev:'medium',  cat:'firebase',label:'Firebase Project ID',               provider:'Firebase'},
+  {id:'fb_msgid',    src:'"messagingSenderId"\\s*:\\s*"([0-9]{10,})"',                               flags:'gi',sev:'medium',  cat:'firebase',label:'Firebase Messaging Sender ID',      provider:'Firebase'},
+  {id:'fb_appid',    src:'"appId"\\s*:\\s*"(1:[0-9]+:[a-z]+:[a-f0-9]+)"',                           flags:'gi',sev:'high',    cat:'firebase',label:'Firebase App ID',                   provider:'Firebase'},
+  {id:'fb_bucket',   src:'"storageBucket"\\s*:\\s*"([a-z0-9_.-]+\\.appspot\\.com)"',                 flags:'gi',sev:'high',    cat:'firebase',label:'Firebase Storage Bucket',           provider:'Firebase'},
+  {id:'fb_vapid',    src:'"vapidKey"\\s*:\\s*"([A-Za-z0-9_\\-]{80,})"',                             flags:'gi',sev:'high',    cat:'firebase',label:'Firebase VAPID Key',                provider:'Firebase'},
+  {id:'g_oauth_id',  src:'[0-9]+-[a-z0-9_]+\\.apps\\.googleusercontent\\.com',                      flags:'gi',sev:'high',    cat:'apikey',  label:'Google OAuth Client ID',            provider:'Google'},
+  {id:'g_oauth_sec', src:'"client_secret"\\s*:\\s*"(GOCSPX-[A-Za-z0-9_\\-]{28})"',                 flags:'gi',sev:'critical',cat:'apikey',  label:'Google OAuth Client Secret',        provider:'Google'},
+  {id:'g_svc_acc',   src:'"type"\\s*:\\s*"service_account"',                                         flags:'gi',sev:'critical',cat:'secret',  label:'GCP Service Account JSON',          provider:'Google Cloud'},
+  {id:'aws_id',      src:'AKIA[0-9A-Z]{16}',                                                         flags:'g', sev:'critical',cat:'apikey',  label:'AWS Access Key ID (AKIA...)',       provider:'AWS'},
+  {id:'aws_secret',  src:'(?:aws_secret|aws_secret_access_key|AWSSecretKey)[\\s=:"\']+([A-Za-z0-9\\/+]{40})',flags:'gi',sev:'critical',cat:'secret',label:'AWS Secret Access Key',     provider:'AWS'},
+  {id:'aws_session', src:'(?:aws_session_token|AWSSessionToken)[\\s=:"\']+([A-Za-z0-9\\/+]{100,})', flags:'gi',sev:'critical',cat:'secret',  label:'AWS Session Token',                 provider:'AWS'},
+  {id:'aws_s3',      src:'https?:\\/\\/[a-z0-9.-]+\\.s3(?:\\.[a-z0-9-]+)?\\.amazonaws\\.com',      flags:'gi',sev:'medium',  cat:'apikey',  label:'AWS S3 Bucket URL',                 provider:'AWS'},
+  {id:'az_connstr',  src:'DefaultEndpointsProtocol=https;AccountName=[^;]+;AccountKey=[A-Za-z0-9+\\/=]{60,}',flags:'gi',sev:'critical',cat:'secret',label:'Azure Storage Connection String',provider:'Azure'},
+  {id:'az_sas',      src:'SharedAccessSignature=[^\'"\\s]{40,}',                                     flags:'gi',sev:'critical',cat:'secret',  label:'Azure SAS Token',                   provider:'Azure'},
+  {id:'az_clientsec',src:'(?:clientSecret|ClientSecret|client_secret)[\\s=:"\']+([A-Za-z0-9._~\\-]{30,})',flags:'gi',sev:'critical',cat:'secret',label:'Azure Client Secret',           provider:'Azure'},
+  {id:'openai',      src:'sk-[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9]{20}',                              flags:'g', sev:'critical',cat:'apikey',  label:'OpenAI API Key',                    provider:'OpenAI'},
+  {id:'openai2',     src:'sk-proj-[A-Za-z0-9_\\-]{40,}',                                            flags:'g', sev:'critical',cat:'apikey',  label:'OpenAI Project API Key',            provider:'OpenAI'},
+  {id:'anthropic',   src:'sk-ant-api[0-9]{2}-[A-Za-z0-9_\\-]{40,}',                                flags:'g', sev:'critical',cat:'apikey',  label:'Anthropic (Claude) API Key',        provider:'Anthropic'},
+  {id:'hf_token',    src:'hf_[A-Za-z0-9]{34}',                                                      flags:'g', sev:'critical',cat:'apikey',  label:'HuggingFace API Token',             provider:'HuggingFace'},
+  {id:'replicate',   src:'r8_[A-Za-z0-9]{40}',                                                      flags:'g', sev:'critical',cat:'apikey',  label:'Replicate API Token',               provider:'Replicate'},
+  {id:'groq',        src:'gsk_[A-Za-z0-9]{52}',                                                     flags:'g', sev:'critical',cat:'apikey',  label:'Groq API Key',                      provider:'Groq'},
+  {id:'stripe_live', src:'sk_live_[A-Za-z0-9]{24,}',                                                flags:'g', sev:'critical',cat:'apikey',  label:'Stripe Secret Live Key',            provider:'Stripe'},
+  {id:'stripe_test', src:'sk_test_[A-Za-z0-9]{24,}',                                                flags:'g', sev:'high',    cat:'apikey',  label:'Stripe Secret Test Key',            provider:'Stripe'},
+  {id:'stripe_pk',   src:'pk_(?:live|test)_[A-Za-z0-9]{24,}',                                      flags:'g', sev:'medium',  cat:'apikey',  label:'Stripe Publishable Key',            provider:'Stripe'},
+  {id:'razorpay',    src:'rzp_(?:live|test)_[A-Za-z0-9]{14}',                                      flags:'g', sev:'critical',cat:'apikey',  label:'Razorpay API Key',                  provider:'Razorpay'},
+  {id:'paypal_id',   src:'(?:paypal)[_\\-]?client[_\\-]?id[\\s=:"\']+([A-Za-z0-9_\\-]{20,})',     flags:'gi',sev:'high',    cat:'apikey',  label:'PayPal Client ID',                  provider:'PayPal'},
+  {id:'slack_tok',   src:'xox[baprs]-[0-9]{10,12}-[0-9]{10,12}-[A-Za-z0-9]{24,}',                 flags:'g', sev:'critical',cat:'apikey',  label:'Slack OAuth Token',                 provider:'Slack'},
+  {id:'slack_wh',    src:'https:\\/\\/hooks\\.slack\\.com\\/services\\/T[A-Za-z0-9]{8}\\/B[A-Za-z0-9]{8,}\\/[A-Za-z0-9]{24,}',flags:'g',sev:'critical',cat:'apikey',label:'Slack Webhook URL',provider:'Slack'},
+  {id:'discord_tok', src:'[MN][A-Za-z0-9]{17,19}\\.[A-Za-z0-9]{6}\\.[A-Za-z0-9_\\-]{27,}',       flags:'g', sev:'critical',cat:'apikey',  label:'Discord Bot Token',                 provider:'Discord'},
+  {id:'discord_wh',  src:'https:\\/\\/discord(?:app)?\\.com\\/api\\/webhooks\\/[0-9]+\\/[A-Za-z0-9_\\-]+',flags:'g',sev:'high',cat:'apikey',label:'Discord Webhook URL',              provider:'Discord'},
+  {id:'twilio_sid',  src:'AC[a-z0-9]{32}',                                                          flags:'g', sev:'critical',cat:'apikey',  label:'Twilio Account SID',                provider:'Twilio'},
+  {id:'twilio_tok',  src:'SK[a-z0-9]{32}',                                                          flags:'g', sev:'critical',cat:'apikey',  label:'Twilio API Key',                    provider:'Twilio'},
+  {id:'sendgrid',    src:'SG\\.[A-Za-z0-9_\\-]{22}\\.[A-Za-z0-9_\\-]{43}',                        flags:'g', sev:'critical',cat:'apikey',  label:'SendGrid API Key',                  provider:'SendGrid'},
+  {id:'mailgun',     src:'key-[a-z0-9]{32}',                                                        flags:'g', sev:'critical',cat:'apikey',  label:'Mailgun API Key',                   provider:'Mailgun'},
+  {id:'mailchimp',   src:'[0-9a-f]{32}-us[0-9]{1,2}',                                              flags:'g', sev:'high',    cat:'apikey',  label:'Mailchimp API Key',                 provider:'Mailchimp'},
+  {id:'telegram',    src:'[0-9]{8,10}:[A-Za-z0-9_\\-]{35}',                                       flags:'g', sev:'critical',cat:'apikey',  label:'Telegram Bot Token',                provider:'Telegram'},
+  {id:'github_tok',  src:'(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36,}',                             flags:'g', sev:'critical',cat:'apikey',  label:'GitHub Personal Access Token',      provider:'GitHub'},
+  {id:'github_fine', src:'github_pat_[A-Za-z0-9_]{82}',                                            flags:'g', sev:'critical',cat:'apikey',  label:'GitHub Fine-Grained PAT',           provider:'GitHub'},
+  {id:'gitlab_tok',  src:'glpat-[A-Za-z0-9\\-_]{20}',                                             flags:'g', sev:'critical',cat:'apikey',  label:'GitLab Personal Access Token',      provider:'GitLab'},
+  {id:'fb_access',   src:'EAACEdEose0cBA[0-9A-Za-z]+',                                             flags:'g', sev:'critical',cat:'apikey',  label:'Facebook Access Token',             provider:'Meta'},
+  {id:'twitter_key', src:'(?:twitter|tw)[_\\-]?api[_\\-]?key[\\s=:"\']+([A-Za-z0-9]{18,25})',    flags:'gi',sev:'critical',cat:'apikey',  label:'Twitter/X API Key',                 provider:'Twitter/X'},
+  {id:'instagram',   src:'IGQ[A-Za-z0-9_\\-]{100,}',                                               flags:'g', sev:'critical',cat:'apikey',  label:'Instagram Graph API Token',         provider:'Meta'},
+  {id:'mapbox_pub',  src:'pk\\.eyJ1[A-Za-z0-9_\\-\\.]+',                                          flags:'g', sev:'high',    cat:'apikey',  label:'Mapbox Public Token',               provider:'Mapbox'},
+  {id:'mapbox_sec',  src:'sk\\.eyJ1[A-Za-z0-9_\\-\\.]+',                                          flags:'g', sev:'critical',cat:'apikey',  label:'Mapbox Secret Token',               provider:'Mapbox'},
+  {id:'mongo_uri',   src:'mongodb(?:\\+srv)?:\\/\\/[^\\s"\'<>]+',                                  flags:'gi',sev:'critical',cat:'secret',  label:'MongoDB Connection URI',            provider:'MongoDB'},
+  {id:'postgres_uri',src:'postgres(?:ql)?:\\/\\/[^\\s"\'<>]+',                                    flags:'gi',sev:'critical',cat:'secret',  label:'PostgreSQL Connection URI',         provider:'PostgreSQL'},
+  {id:'mysql_uri',   src:'mysql:\\/\\/[^\\s"\'<>]+',                                               flags:'gi',sev:'critical',cat:'secret',  label:'MySQL Connection URI',              provider:'MySQL'},
+  {id:'redis_uri',   src:'redis(?:s)?:\\/\\/[^\\s"\'<>]+',                                        flags:'gi',sev:'critical',cat:'secret',  label:'Redis Connection URI',              provider:'Redis'},
+  {id:'supabase',    src:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\\.[A-Za-z0-9_\\-]+\\.[A-Za-z0-9_\\-]+',flags:'g',sev:'critical',cat:'apikey',label:'Supabase / JWT Token',          provider:'Supabase'},
+  {id:'planetscale', src:'pscale_tkn_[A-Za-z0-9_]{40,}',                                          flags:'g', sev:'critical',cat:'apikey',  label:'PlanetScale Token',                 provider:'PlanetScale'},
+  {id:'alchemy',     src:'alcht_[A-Za-z0-9_]{32}',                                                 flags:'g', sev:'critical',cat:'apikey',  label:'Alchemy API Key',                   provider:'Alchemy'},
+  {id:'netlify',     src:'nfp_[A-Za-z0-9]{36}',                                                   flags:'g', sev:'critical',cat:'apikey',  label:'Netlify Personal Access Token',     provider:'Netlify'},
+  {id:'doppler',     src:'dp\\.pt\\.[A-Za-z0-9]{43}',                                             flags:'g', sev:'critical',cat:'apikey',  label:'Doppler Service Token',             provider:'Doppler'},
+  {id:'priv_key',    src:'-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----',                flags:'g', sev:'critical',cat:'secret',  label:'Private Key Block (PEM)',           provider:'PKI'},
+  {id:'jwt',         src:'eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}',    flags:'g', sev:'critical',cat:'secret',  label:'JWT Token',                         provider:'Auth'},
+  {id:'gen_secret',  src:'(?:secret|api_secret|client_secret|app_secret)[\\s=:"\']+["\']?([^\\s"\'<>{}\\[\\]]{8,})["\']?',flags:'gi',sev:'high',cat:'secret',label:'Generic Secret',provider:'Generic'},
+  {id:'gen_token',   src:'(?:access_token|auth_token|bearer_token)[\\s=:"\']+["\']?([A-Za-z0-9_\\-.]{20,})["\']?',flags:'gi',sev:'high',cat:'secret',label:'Generic Auth Token',    provider:'Generic'},
+  {id:'gen_pass',    src:'(?:password|passwd|pwd)\\s*[=:"]+\\s*["\']?([^"\'\\s]{8,})["\']?',    flags:'gi',sev:'high',    cat:'secret',  label:'Hardcoded Password',                provider:'Generic'},
+  {id:'bearer',      src:'Bearer\\s+([A-Za-z0-9_\\-.]{20,})',                                     flags:'gi',sev:'high',    cat:'secret',  label:'Bearer Token',                      provider:'Auth'},
+  {id:'basic_auth',  src:'Basic\\s+([A-Za-z0-9+\\/]{20,}={0,2})',                                flags:'gi',sev:'high',    cat:'secret',  label:'Basic Auth Credential (Base64)',     provider:'Auth'},
+  {id:'x_api_key',   src:'(?:x-api-key|x_api_key)[\\s=:"\']+([A-Za-z0-9_\\-]{20,})',            flags:'gi',sev:'high',    cat:'apikey',  label:'x-api-key Header Value',            provider:'Generic'},
+  {id:'url',         src:'https?:\\/\\/[a-zA-Z0-9_\\-.]+\\.[a-zA-Z]{2,}(?:\\/[^\\s"\'<>]*)?',  flags:'gi',sev:'info',    cat:'url',     label:'URL / Endpoint',                    provider:''}
+
+];
+
+var SCAN_EXT=/\.(xml|json|js|ts|java|kt|smali|html|htm|txt|yaml|yml|properties|gradle|config|cfg|env|plist|strings|sh|py|rb|go|php|cs|cpp|c|h|dart|swift|m|toml|lock)$/i;
+
+/* MAIN RUN */
+async function run(){
+  if(!cf)return;
+  findings={firebase:[],apikeys:[],secrets:[],keywords:[],urls:[]};
+  allFiles=[];mfXml='';
+  sp(0,'INITIALIZING SCAN ENGINE...');showProg(true);
+  document.getElementById('stats').classList.remove('vis');
+  document.getElementById('ra').className='';
+  var kws=document.getElementById('kwinp').value.split(',').map(function(s){return s.trim();}).filter(Boolean);
+  try{
+    sp(2,'LOADING APK ARCHIVE...');
+    var zip=await JSZip.loadAsync(cf);
+    var entries=Object.values(zip.files).filter(function(f){return !f.dir;});
+    allFiles=entries.map(function(f){return {name:f.name};});
+    document.getElementById('cFiles').textContent=entries.length;
+    document.getElementById('stS').textContent=entries.length;
+    sp(5,'LOADED '+entries.length+' FILES');
+    var sl=entries.filter(function(f){
+      return SCAN_EXT.test(f.name)||/manifest/i.test(f.name)||/google-services/i.test(f.name)||/\.env/i.test(f.name);
+    });
+    sp(7,sl.length+' SCANNABLE FILES IDENTIFIED');
+    for(var i=0;i<sl.length;i++){
+      var ent=sl[i];
+      sp(7+Math.round(i/sl.length*83),'SCANNING: '+ent.name.split('/').pop());
+      try{
+        var txt=await ent.async('text');
+        var nm=ent.name.toLowerCase();
+        if(nm==='androidmanifest.xml'||nm.endsWith('/androidmanifest.xml'))mfXml=txt;
+        scanF(ent.name,txt,kws);
+      }catch(ex){}
+    }
+    sp(93,'COMPILING FINDINGS...');await sleep(80);
+    renderAll();
+    var tot=findings.firebase.length+findings.apikeys.length+findings.secrets.length+findings.keywords.length;
+    sp(100,'SCAN COMPLETE — '+tot+' FINDINGS');
+    await sleep(500);showProg(false);
+    document.getElementById('stats').classList.add('vis');
+    document.getElementById('ra').className='ra vis';
+    animCounters();
+  }catch(err){sp(0,'ERROR: '+err.message);console.error(err);}
+}
+
+function animCounters(){
+  ['stF','stC','stA','stK','stS'].forEach(function(id){
+    var el=document.getElementById(id),target=parseInt(el.textContent)||0,cur=0;
+    var step=Math.max(1,Math.ceil(target/25));
+    var iv=setInterval(function(){cur=Math.min(cur+step,target);el.textContent=cur;if(cur>=target)clearInterval(iv);},35);
+  });
+}
+
+/* SCANNER */
+function scanF(fname,text,kws){
+  PATS.forEach(function(p){
+    if(p.cat==='url')return;
+    var re,m,hits=[];
+    try{re=new RegExp(p.src,p.flags);}catch(e){return;}
+    while((m=re.exec(text))!==null){
+      var s=Math.max(0,m.index-65),e=Math.min(text.length,m.index+m[0].length+65);
+      hits.push({value:m[0],context:text.slice(s,e).replace(/\n/g,' '),line:lno(text,m.index)});
+      if(hits.length>=15)break;
+    }
+    if(!hits.length)return;
+    var f={id:p.id,label:p.label,provider:p.provider,sev:p.sev,file:fname,matches:hits};
+    if(p.cat==='firebase')findings.firebase.push(f);
+    else if(p.cat==='apikey')findings.apikeys.push(f);
+    else findings.secrets.push(f);
+  });
+
+  /* URL bucket */
+  var up=PATS[PATS.length-1];
+  var ure,um,ua=[],us={};
+  try{ure=new RegExp(up.src,up.flags);}catch(e){ure=null;}
+  if(ure){
+    while((um=ure.exec(text))!==null){
+      var u=um[0];
+      if(/firebase|appspot|googleapis/.test(u)||us[u])continue;
+      us[u]=1;ua.push({value:u,context:u,line:lno(text,um.index)});
+      if(ua.length>=50)break;
+    }
+    if(ua.length)findings.urls.push({id:'url',label:'Endpoints',provider:'',sev:'info',file:fname,matches:ua});
+  }
+
+  /* Custom keywords */
+  kws.forEach(function(kw){
+    var kr,km,ka=[];
+    try{kr=new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi');}catch(e){return;}
+    while((km=kr.exec(text))!==null){
+      var s2=Math.max(0,km.index-80),e2=Math.min(text.length,km.index+km[0].length+80);
+      ka.push({value:km[0],context:text.slice(s2,e2).replace(/\n/g,' '),line:lno(text,km.index)});
+      if(ka.length>=25)break;
+    }
+    if(ka.length)findings.keywords.push({id:'kw_'+kw,label:'Keyword: "'+kw+'"',provider:'Custom',sev:'medium',file:fname,matches:ka});
+  });
+}
+
+/* RENDER */
+function renderAll(){
+  document.getElementById('cFire').textContent=findings.firebase.length;
+  document.getElementById('cAPI').textContent=findings.apikeys.length;
+  document.getElementById('cSec').textContent=findings.secrets.length;
+  document.getElementById('cKw').textContent=findings.keywords.length;
+  document.getElementById('cUrl').textContent=findings.urls.length;
+  var fbUrls=new Set();
+  findings.firebase.forEach(function(f){
+    if(f.id==='fb_rtdb'||f.id==='fb_rtdb2')f.matches.forEach(function(m){fbUrls.add(m.value);});
+  });
+  document.getElementById('stF').textContent=fbUrls.size;
+  var crit=findings.firebase.concat(findings.apikeys).concat(findings.secrets).filter(function(f){return f.sev==='critical';}).length;
+  document.getElementById('stC').textContent=crit;
+  document.getElementById('stA').textContent=findings.apikeys.length;
+  document.getElementById('stK').textContent=findings.keywords.reduce(function(a,f){return a+f.matches.length;},0);
+  renderFirebase();renderAPIKeys();
+  renderList('secContent',findings.secrets);
+  renderList('kwContent',findings.keywords);
+  renderList('urlContent',findings.urls);
+  renderManifest();renderTree();
+}
+
+function renderFirebase(){
+  var el=document.getElementById('fbContent');
+  if(!findings.firebase.length){el.innerHTML=emp('// NO FIREBASE CREDENTIALS DETECTED');return;}
+  var fbUrls=new Set(),fbKeys=new Set();
+  findings.firebase.forEach(function(f){
+    f.matches.forEach(function(m){
+      if(f.id==='fb_rtdb'||f.id==='fb_rtdb2')fbUrls.add(m.value);
+      if(f.id==='fb_gkey')fbKeys.add(m.value);
+    });
+  });
+  var h='';
+  if(fbUrls.size||fbKeys.size){
+    h+='<div class="fbhero"><div class="fbico">&#x1F525;</div><div style="flex:1"><h3>FIREBASE CREDENTIALS DETECTED</h3>';
+    h+='<p style="color:var(--ts);font-size:.83rem">'+fbUrls.size+' Realtime DB URL(s) &bull; '+fbKeys.size+' API Key(s)</p>';
+    if(fbUrls.size){h+='<div class="fbulist">';fbUrls.forEach(function(u){h+='<div class="fbui"><span>'+eh(u)+'</span><button class="cb" data-copy="'+eh(u)+'">&#x1F4CB; COPY</button></div>';});h+='</div>';}
+    if(fbKeys.size){h+='<div style="margin-top:9px;font-family:Orbitron,sans-serif;font-size:9px;color:var(--ts);letter-spacing:1px;margin-bottom:5px">// API KEYS</div><div class="fbulist">';fbKeys.forEach(function(k){h+='<div class="fbui"><span>'+eh(k)+'</span><button class="cb" data-copy="'+eh(k)+'">&#x1F4CB; COPY</button></div>';});h+='</div>';}
+    h+='</div></div>';
+  }
+  if(fbUrls.size){
+    h+='<div class="testlinks"><div class="tltitle">// OPEN READ TEST ENDPOINTS (Firebase /.json public access check)</div>';
+    fbUrls.forEach(function(u){var tu=u.replace(/\/?$/,'')+'/.json';h+='<div class="tlitem"><a href="'+eh(tu)+'" target="_blank" rel="noopener noreferrer">&#x1F517; '+eh(tu)+'</a></div>';});
+    h+='</div>';
+  }
+  h+='<div class="fl">'+findings.firebase.map(mkCard).join('')+'</div>';
+  el.innerHTML=h;bc(el);
+}
+
+function renderAPIKeys(){
+  var el=document.getElementById('akContent');
+  if(!findings.apikeys.length){el.innerHTML=emp('// NO API KEYS DETECTED');return;}
+  var byProv={};
+  findings.apikeys.forEach(function(f){var p=f.provider||'Other';if(!byProv[p])byProv[p]=[];byProv[p].push(f);});
+  var h='<div class="akhero"><h3>&#x1F511; EXPOSED API KEYS BY PROVIDER</h3>';
+  h+='<p style="color:var(--ts);font-size:.83rem;font-family:JetBrains Mono,monospace">'+findings.apikeys.length+' finding(s) across '+Object.keys(byProv).length+' provider(s)</p>';
+  h+='<div class="akgrid">';
+  Object.keys(byProv).sort().forEach(function(prov){
+    var items=byProv[prov],vals=[];
+    items.forEach(function(f){f.matches.forEach(function(m){if(vals.indexOf(m.value)<0)vals.push(m.value);});});
+    vals.slice(0,3).forEach(function(v){
+      h+='<div class="akitem"><div class="aklbl">'+eh(prov)+'</div><div class="akval">'+eh(v.length>78?v.slice(0,75)+'...':v)+'</div><button class="cb" data-copy="'+eh(v)+'">&#x1F4CB; COPY</button></div>';
+    });
+  });
+  h+='</div></div><div class="fl" style="margin-top:14px">'+findings.apikeys.map(mkCard).join('')+'</div>';
+  el.innerHTML=h;bc(el);
+}
+
+function renderList(elId,list){
+  var el=document.getElementById(elId);
+  if(!list.length){el.innerHTML=emp('// NOTHING FOUND IN THIS CATEGORY');return;}
+  el.innerHTML=list.map(mkCard).join('');bc(el);
+}
+
+function mkCard(f){
+  var lines=f.matches.slice(0,10).map(function(m){
+    var ctx=eh(m.context);
+    try{
+      var ve=eh(m.value).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+      ctx=ctx.replace(new RegExp(ve,'gi'),'<span class="mh">'+eh(m.value)+'</span>');
+    }catch(e){}
+    return '<span class="ml"><span style="color:var(--tm);margin-right:7px">L'+m.line+'</span>'+ctx+'</span>';
+  }).join('\n');
+  var all=f.matches.map(function(m){return m.value;}).join('\n');
+  var sc={critical:'sc2b',high:'sh2',medium:'sm2',low:'sl2',info:'si2'}[f.sev]||'si2';
+  var prov=f.provider?'<span class="fprov">'+eh(f.provider)+'</span>':'';
+  return '<div class="fc" data-label="'+eh((f.label||'').toLowerCase())+'" data-file="'+eh(f.file.toLowerCase())+'" data-val="'+eh(all.toLowerCase())+'">'+
+    '<div class="fh" onclick="this.parentElement.classList.toggle('exp')">'+
+    '<span class="sb '+sc+'">'+f.sev+'</span>'+prov+
+    '<span class="ft2">'+eh(f.label)+'</span>'+
+    '<span class="ff" title="'+eh(f.file)+'">'+eh(f.file.split('/').pop())+'</span>'+
+    '<span style="color:var(--tm);font-size:10px;font-family:JetBrains Mono,monospace;margin-left:6px;flex-shrink:0">'+f.matches.length+'x</span>'+
+    '<span class="chv">&#x25BC;</span></div>'+
+    '<div class="fb2"><div style="font-family:JetBrains Mono,monospace;font-size:10px;color:var(--tm);margin-bottom:7px">// '+eh(f.file)+'</div>'+
+    '<div class="mb">'+lines+'</div>'+
+    '<button class="cb" data-copy="'+eh(all)+'">&#x1F4CB; COPY ALL MATCHES</button></div></div>';
+}
+
+function renderManifest(){
+  var el=document.getElementById('mfContent');
+  if(!mfXml){el.innerHTML=emp('// AndroidManifest.xml not found or binary-encoded\n// Debug / re-signed APKs show it here');return;}
+  el.innerHTML='<div class="mfh">// ANDROIDMANIFEST.XML</div><div class="mb" style="max-height:560px;overflow:auto;font-size:11px">'+eh(mfXml)+'</div><button class="cb" data-copy="'+eh(mfXml)+'" style="margin-top:9px">&#x1F4CB; COPY MANIFEST</button>';
+  bc(el);
+}
+
+function renderTree(){
+  var el=document.getElementById('ftl');
+  el.innerHTML=allFiles.map(function(f){
+    return '<div class="ti" data-name="'+eh(f.name)+'">'+'<span style="color:var(--neo);font-family:Orbitron,monospace;font-size:8px;opacity:.45;margin-right:6px">'+fext(f.name)+'</span>'+eh(f.name)+'</div>';
+  }).join('');
+}
+
+function liveFilter(){
+  var q=document.getElementById('lsf').value.toLowerCase().trim();
+  document.querySelectorAll('.fc').forEach(function(el){
+    if(!q){el.style.display='';return;}
+    el.style.display=(el.dataset.label.includes(q)||el.dataset.file.includes(q)||el.dataset.val.includes(q))?'':'none';
+  });
+}
+function filterTree(){
+  var q=document.getElementById('tfs').value.toLowerCase();
+  document.querySelectorAll('.ti').forEach(function(el){el.style.display=el.dataset.name.toLowerCase().includes(q)?'':'none';});
+}
+function switchTab(n){
+  document.querySelectorAll('.pan').forEach(function(p){p.classList.remove('on');});
+  document.querySelectorAll('.tb').forEach(function(b){b.classList.remove('on');});
+  document.getElementById('pan-'+n).classList.add('on');
+  var btn=document.querySelector('[data-tab="'+n+'"]');if(btn)btn.classList.add('on');
+}
+function bc(root){
+  root.querySelectorAll('[data-copy]').forEach(function(b){
+    b.addEventListener('click',function(e){e.stopPropagation();cpy(b,b.getAttribute('data-copy'));});
+  });
+}
+function cpy(btn,val){
+  var ok=function(){var o=btn.innerHTML;btn.innerHTML='&#x2705; COPIED';btn.classList.add('ok');setTimeout(function(){btn.innerHTML=o;btn.classList.remove('ok');},2000);};
+  if(navigator.clipboard){navigator.clipboard.writeText(val).then(ok).catch(function(){fb(val,ok);});}else fb(val,ok);
+}
+function fb(val,ok){var t=document.createElement('textarea');t.value=val;t.style.cssText='position:fixed;opacity:0';document.body.appendChild(t);t.select();try{document.execCommand('copy');ok();}catch(e){}document.body.removeChild(t);}
+function sp(pct,msg){
+  document.getElementById('pb').style.width=pct+'%';
+  document.getElementById('ppct').textContent=pct+'%';
+  document.getElementById('ptitle').textContent=msg;
+  var log=document.getElementById('plog');
+  var d=document.createElement('div');d.className='pl a';d.textContent='> '+msg;log.appendChild(d);log.scrollTop=log.scrollHeight;
+  log.querySelectorAll('.pl').forEach(function(l,i,a){if(i<a.length-1)l.classList.remove('a');});
+}
+function showProg(v){document.getElementById('prog').classList.toggle('vis',v);}
+function emp(m){return '<div class="empty"><span class="eico">&#x1F7E2;</span><p class="etxt">'+m+'</p></div>';}
+function lno(t,i){return t.slice(0,i).split('\n').length;}
+function fmtB(b){if(b<1024)return b+' B';if(b<1048576)return (b/1024).toFixed(1)+' KB';return (b/1048576).toFixed(1)+' MB';}
+function eh(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function sleep(ms){return new Promise(function(r){setTimeout(r,ms);});}
+function fext(n){var e=(n.split('.').pop()||'').toLowerCase();var m={xml:'XML',json:'JSN',java:'JVA',kt:'KOT',smali:'SMI',dex:'DEX',so:'SO',js:'JS',ts:'TS',html:'HTM',gradle:'GRD',properties:'PRO',yaml:'YML',yml:'YML',txt:'TXT',db:'DB',pem:'KEY',dart:'DRT',env:'ENV',toml:'TML'};return m[e]||'???';}
+})();
+</script>
+</body>
+</html>
