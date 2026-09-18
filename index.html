@@ -369,7 +369,9 @@ footer{text-align:center;padding:38px 0 18px;color:var(--tm);font-size:10.5px;z-
     <button class="tb" data-tab="keywords">&#x1F50D; Keywords <span class="tc" id="cKw">0</span></button>
     <button class="tb" data-tab="urls">&#x1F310; Endpoints &amp; Internal <span class="tc" id="cUrl">0</span></button>
     <button class="tb" data-tab="manifest">&#x1F4CB; Manifest</button>
-    <button class="tb" data-tab="frida" style="color:#ff2d78;background:rgba(255,45,120,.08)">&#x1FA78; Frida Scripts</button>
+    <button class="tb" data-tab="frida" style="color:#ff2d78;background:rgba(255,45,120,.08)">&#x1FA78; Frida Hooks</button>
+    <button class="tb" data-tab="drozer" style="color:#00ff9d;background:rgba(0,255,157,.08)">&#x1F47E; Drozer PoC</button>
+    <button class="tb" data-tab="masvs" style="color:#ffd700;background:rgba(255,215,0,.08)">&#x1F6E1; OWASP MASVS</button>
     <button class="tb" data-tab="files">&#x1F4C1; Files <span class="tc" id="cFiles">0</span></button>
   </div>
 
@@ -382,6 +384,20 @@ footer{text-align:center;padding:38px 0 18px;color:var(--tm);font-size:10.5px;z-
   <div class="pan" id="pan-keywords"><div class="fl" id="kwContent"></div></div>
   <div class="pan" id="pan-urls"><div class="fl" id="urlContent"></div></div>
   <div class="pan" id="pan-manifest"><div id="mfContent"></div></div>
+    <div class="pan" id="pan-drozer">
+    <div class="akhero" style="background:linear-gradient(135deg,rgba(0,255,157,.09),rgba(0,212,255,.04));border-color:rgba(0,255,157,.3)">
+      <h3 style="color:#00ff9d">&#x1F47E; DROZER SECURITY TESTING WORKFLOW</h3>
+      <p style="color:var(--ts);font-size:.83rem;font-family:JetBrains Mono,monospace">Automated Drozer exploitation commands generated for: <span id="drozerPkg" style="color:#00d4ff;font-weight:700">unknown</span></p>
+    </div>
+    <div class="fl" id="drozerContent" style="margin-top:14px"></div>
+  </div>
+  <div class="pan" id="pan-masvs">
+    <div class="akhero" style="background:linear-gradient(135deg,rgba(255,215,0,.09),rgba(255,107,0,.04));border-color:rgba(255,215,0,.3)">
+      <h3 style="color:#ffd700">&#x1F6E1; OWASP MOBILE APP SECURITY VERIFICATION STANDARD (MASVS)</h3>
+      <p style="color:var(--ts);font-size:.83rem;font-family:JetBrains Mono,monospace">Full compliance matrix mapping static analysis findings to OWASP MSTG requirements</p>
+    </div>
+    <div class="perm-grid" id="masvsContent" style="margin-top:14px"></div>
+  </div>
   <div class="pan" id="pan-frida">
     <div class="akhero" style="background:linear-gradient(135deg,rgba(255,45,120,.09),rgba(123,47,255,.04));border-color:rgba(255,45,120,.3)">
       <h3 style="color:#ff2d78">&#x1FA78; DYNAMIC ANALYSIS HOOK SCRIPTS (FRIDA &amp; OBJECTION)</h3>
@@ -1953,7 +1969,108 @@ function renderFrida(){
   bc(el);
 }
 
+
+var MASVS_CHECKS = [
+  {id:'MASVS-STORAGE-1', title:'Sensitive Data in Device Logs', cat:'Storage', rule:'v_sens_log', req:'MSTG-STORAGE-3', desc:'App must not write sensitive authentication tokens, passwords, or PII to system Logcat.'},
+  {id:'MASVS-STORAGE-2', title:'World-Readable / Writable Storage', cat:'Storage', rule:'v_world_f', req:'MSTG-STORAGE-2', desc:'App must not create world-readable or world-writable files in local or shared storage.'},
+  {id:'MASVS-CRYPTO-1',  title:'Deprecated Insecure Ciphers', cat:'Crypto', rule:'v_des', req:'MSTG-CRYPTO-2', desc:'App must not use legacy ciphers (DES, RC4, Blowfish) vulnerable to cryptanalysis.'},
+  {id:'MASVS-CRYPTO-2',  title:'Insecure Cipher Mode (AES/ECB)', cat:'Crypto', rule:'v_ecb', req:'MSTG-CRYPTO-3', desc:'App must use authenticated or randomized modes (CBC, GCM) instead of deterministic ECB.'},
+  {id:'MASVS-CRYPTO-3',  title:'Hardcoded SecretKeySpec Keys', cat:'Crypto', rule:'v_sec_key', req:'MSTG-CRYPTO-1', desc:'Cryptographic keys must not be hardcoded in application bytecode or resource files.'},
+  {id:'MASVS-CRYPTO-4',  title:'Static Initialization Vector (IV)', cat:'Crypto', rule:'v_hard_iv', req:'MSTG-CRYPTO-3', desc:'Initialization vectors must be cryptographically random and never reused with identical keys.'},
+  {id:'MASVS-NETWORK-1', title:'Custom Insecure TrustManager', cat:'Network', rule:'v_trust_all', req:'MSTG-NETWORK-3', desc:'TLS certificates must be strictly validated against standard trusted Certificate Authorities.'},
+  {id:'MASVS-NETWORK-2', title:'Disabled Hostname Verification', cat:'Network', rule:'v_allow_host', req:'MSTG-NETWORK-3', desc:'TLS clients must verify hostnames match domain certificates to prevent MITM.'},
+  {id:'MASVS-NETWORK-3', title:'Cleartext Traffic Enforcement', cat:'Network', rule:'v_cleartext', req:'MSTG-NETWORK-1', desc:'App manifest must disallow cleartext HTTP traffic across all API endpoints.'},
+  {id:'MASVS-PLATFORM-1',title:'Exported Components Attack Surface', cat:'Platform', rule:'comp', req:'MSTG-PLATFORM-1', desc:'Exported activities, services, and receivers must require caller permissions or be unexported.'},
+  {id:'MASVS-PLATFORM-2',title:'WebView JavaScript Interface', cat:'Platform', rule:'v_js_iface', req:'MSTG-PLATFORM-5', desc:'Native Java objects exposed via addJavascriptInterface must be restricted to trusted origins.'},
+  {id:'MASVS-PLATFORM-3',title:'WebView Cross-Origin File Access', cat:'Platform', rule:'v_wv_files', req:'MSTG-PLATFORM-6', desc:'File scheme access across different origins must be strictly disabled in WebViews.'},
+  {id:'MASVS-CODE-1',    title:'Dynamic Bytecode Loading (DCL)', cat:'Code', rule:'v_dyn_load', req:'MSTG-CODE-1', desc:'Application must not load unverified classes dynamically via DexClassLoader.'},
+  {id:'MASVS-CODE-2',    title:'Application Debuggable in Production', cat:'Code', rule:'v_debug', req:'MSTG-CODE-2', desc:'android:debuggable must be set to false in release builds to prevent JDWP attachment.'}
+];
+
+function renderMasvs(){
+  var el=document.getElementById('masvsContent');
+  if(!el)return;
+  var vulnIds=new Set(findings.vulns.map(function(v){return v.id;}));
+  var hasComp=findings.components.length>0;
+
+  var h='';
+  MASVS_CHECKS.forEach(function(item){
+    var failed=false;
+    if(item.rule==='comp')failed=hasComp;
+    else failed=vulnIds.has(item.rule);
+
+    var statusClass=failed?'sc2b':'sl2';
+    var statusText=failed?'FAIL (VULNERABLE)':'PASS (COMPLIANT)';
+
+    h+='<div class="perm-item" style="border-left:3px solid '+(failed?'#ff2d2d':'#00ff9d')+';background:rgba(6,14,35,.85)">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+        '<span class="sb '+statusClass+'">'+statusText+'</span>'+
+        '<span style="font-family:Orbitron,sans-serif;font-size:9px;color:var(--ts)">'+eh(item.req)+'</span>'+
+      '</div>'+
+      '<div style="font-family:Orbitron,sans-serif;font-size:11px;color:var(--tp);font-weight:700;margin-bottom:4px">'+eh(item.id)+': '+eh(item.title)+'</div>'+
+      '<div style="font-size:11px;color:var(--ts);line-height:1.45;margin-bottom:8px">'+eh(item.desc)+'</div>'+
+      '<div style="font-family:JetBrains Mono,monospace;font-size:9.5px;color:'+(failed?'#ff7070':'#68d391')+'">'+
+        (failed?'&#x274C; Security vulnerability identified during static audit':'&#x2705; No automated violation detected')+
+      '</div>'+
+    '</div>';
+  });
+
+  el.innerHTML=h;
+}
+
+function renderDrozer(){
+  var el=document.getElementById('drozerContent');
+  if(!el)return;
+  var pkgEl=document.getElementById('drozerPkg');
+  if(pkgEl)pkgEl.textContent=appPkg;
+
+  var drozerCmds='# 1. Connect & Forward Port\n'+
+'adb forward tcp:31415 tcp:31415\n'+
+'drozer console connect\n\n'+
+'# 2. Package Information & Attack Surface Overview\n'+
+'run app.package.info -a '+appPkg+'\n'+
+'run app.package.attacksurface '+appPkg+'\n\n'+
+'# 3. Audit Exported Activities\n'+
+'run app.activity.info -a '+appPkg+'\n'+
+(findings.components.filter(function(c){return c.type==='activity';}).map(function(a){
+  return 'run app.activity.start --component '+a.pkg+' '+a.name;
+}).slice(0,5).join('\n')||'# No exported activities detected')+'\n\n'+
+'# 4. Audit Exported Broadcast Receivers\n'+
+'run app.broadcast.info -a '+appPkg+'\n'+
+(findings.components.filter(function(c){return c.type==='receiver';}).map(function(r){
+  return 'run app.broadcast.send --component '+r.pkg+' '+r.name;
+}).slice(0,5).join('\n')||'# No exported receivers detected')+'\n\n'+
+'# 5. Audit Content Providers (SQL Injection & Traversal)\n'+
+'run app.provider.info -a '+appPkg+'\n'+
+'run scanner.provider.finduris -a '+appPkg+'\n'+
+'run scanner.provider.injection -a '+appPkg+'\n'+
+'run scanner.provider.traversal -a '+appPkg+'\n\n'+
+'# 6. Audit Exported Services\n'+
+'run app.service.info -a '+appPkg+'\n'+
+(findings.components.filter(function(c){return c.type==='service';}).map(function(s){
+  return 'run app.service.start --component '+s.pkg+' '+s.name;
+}).slice(0,5).join('\n')||'# No exported services detected');
+
+  var h='<div class="fc exp">'+
+    '<div class="fh" onclick="this.parentElement.classList.toggle(\'exp\')">'+
+      '<span class="sb sc2b">DROZER</span>'+
+      '<span class="ft2">Automated Attack Surface &amp; Exploitation Commands for '+eh(appPkg)+'</span>'+
+      '<span class="chv">&#x25BC;</span>'+
+    '</div>'+
+    '<div class="fb2">'+
+      '<div style="color:var(--ts);font-size:12px;margin-bottom:8px">Ready-to-paste commands into your active drozer session:</div>'+
+      '<div class="mb" style="max-height:360px;font-size:11px">'+eh(drozerCmds)+'</div>'+
+      '<button class="cb" data-copy="'+eh(drozerCmds)+'">&#x1F4CB; COPY ALL DROZER COMMANDS</button>'+
+    '</div>'+
+  '</div>';
+
+  el.innerHTML=h;
+  bc(el);
+}
+
 function renderAll(){
+  renderMasvs();
+  renderDrozer();
   renderFrida();
   var critVulns=findings.vulns.filter(function(v){return v.sev==='critical';}).length;
   var highVulns=findings.vulns.filter(function(v){return v.sev==='high';}).length;
