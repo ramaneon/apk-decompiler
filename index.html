@@ -273,6 +273,10 @@ footer{text-align:center;padding:38px 0 18px;color:var(--tm);font-size:10.5px;z-
   </div>
 </header>
 
+<div style="display:flex;justify-content:center;gap:10px;margin-bottom:20px;flex-wrap:wrap">
+  <button id="expMdBtn" class="bbr" style="background:rgba(0,255,157,.08);color:#00ff9d;border-color:rgba(0,255,157,.45);font-size:11.5px;padding:9px 18px">&#x1F4CB; EXPORT HACKERONE / BUGCROWD MARKDOWN</button>
+  <button id="expJsonBtn" class="bbr" style="background:rgba(0,212,255,.08);color:#00d4ff;border-color:rgba(0,212,255,.45);font-size:11.5px;padding:9px 18px">&#x1F4E6; EXPORT JSON FINDINGS</button>
+</div>
 <div class="hud" id="hud">
   <span class="hdot"></span><span>SYSTEM ONLINE</span>
   <span class="hsep"></span>
@@ -365,6 +369,7 @@ footer{text-align:center;padding:38px 0 18px;color:var(--tm);font-size:10.5px;z-
     <button class="tb" data-tab="keywords">&#x1F50D; Keywords <span class="tc" id="cKw">0</span></button>
     <button class="tb" data-tab="urls">&#x1F310; Endpoints &amp; Internal <span class="tc" id="cUrl">0</span></button>
     <button class="tb" data-tab="manifest">&#x1F4CB; Manifest</button>
+    <button class="tb" data-tab="frida" style="color:#ff2d78;background:rgba(255,45,120,.08)">&#x1FA78; Frida Scripts</button>
     <button class="tb" data-tab="files">&#x1F4C1; Files <span class="tc" id="cFiles">0</span></button>
   </div>
 
@@ -377,6 +382,13 @@ footer{text-align:center;padding:38px 0 18px;color:var(--tm);font-size:10.5px;z-
   <div class="pan" id="pan-keywords"><div class="fl" id="kwContent"></div></div>
   <div class="pan" id="pan-urls"><div class="fl" id="urlContent"></div></div>
   <div class="pan" id="pan-manifest"><div id="mfContent"></div></div>
+  <div class="pan" id="pan-frida">
+    <div class="akhero" style="background:linear-gradient(135deg,rgba(255,45,120,.09),rgba(123,47,255,.04));border-color:rgba(255,45,120,.3)">
+      <h3 style="color:#ff2d78">&#x1FA78; DYNAMIC ANALYSIS HOOK SCRIPTS (FRIDA &amp; OBJECTION)</h3>
+      <p style="color:var(--ts);font-size:.83rem;font-family:JetBrains Mono,monospace">Production-ready Frida instrumentation scripts generated for target: <span id="fridaPkg" style="color:#00ff9d;font-weight:700">unknown</span></p>
+    </div>
+    <div class="fl" id="fridaContent" style="margin-top:14px"></div>
+  </div>
   <div class="pan" id="pan-files">
     <div class="ftree">
       <div style="font-family:'Orbitron',sans-serif;font-size:10px;color:var(--ts);margin-bottom:10px;letter-spacing:1px">// FILE TREE</div>
@@ -517,6 +529,11 @@ fi.addEventListener('change',function(e){
   }
 });
 document.getElementById('aBtn').addEventListener('click',run);
+var expMd=document.getElementById('expMdBtn');
+if(expMd)expMd.addEventListener('click',exportMarkdownReport);
+var expJson=document.getElementById('expJsonBtn');
+if(expJson)expJson.addEventListener('click',exportJsonReport);
+
 
 var kwDebounceTimer=null;
 document.getElementById('kwinp').addEventListener('input',function(){
@@ -1827,7 +1844,117 @@ function scanF(fname,text,offsets,kws){
 }
 
 /* RENDER RESULTS & SCORE */
+
+function renderFrida(){
+  var el=document.getElementById('fridaContent');
+  if(!el)return;
+  var pkgEl=document.getElementById('fridaPkg');
+  if(pkgEl)pkgEl.textContent=appPkg;
+
+  var sslScript='/* Universal Android SSL Pinning Bypass (Frida) */\n'+
+'Java.perform(function(){\n'+
+'  console.log("[*] Injected into: '+appPkg+'");\n'+
+'  // TrustManager hook\n'+
+'  var X509TrustManager=Java.use("javax.net.ssl.X509TrustManager");\n'+
+'  var SSLContext=Java.use("javax.net.ssl.SSLContext");\n'+
+'  var TM=Java.registerClass({\n'+
+'    name:"com.bogus.TrustManager",\n'+
+'    implements:[X509TrustManager],\n'+
+'    methods:{\n'+
+'      checkClientTrusted:function(){},\n'+
+'      checkServerTrusted:function(){},\n'+
+'      getAcceptedIssuers:function(){return [];}\n'+
+'    }\n'+
+'  });\n'+
+'  var TMs=[TM.$new()];\n'+
+'  var SSLContext_init=SSLContext.init.overload("[Ljavax.net.ssl.KeyManager;","[Ljavax.net.ssl.TrustManager;","java.security.SecureRandom");\n'+
+'  try{SSLContext_init.implementation=function(k,t,s){SSLContext_init.call(this,k,TMs,s);};console.log("[+] SSLContext.init hooked");}catch(e){}\n'+
+'  // OkHttp3 hook\n'+
+'  try{\n'+
+'    var CertificatePinner=Java.use("okhttp3.CertificatePinner");\n'+
+'    CertificatePinner.check.overload("java.lang.String","java.util.List").implementation=function(s,l){return;};\n'+
+'    console.log("[+] OkHttp3 CertificatePinner bypassed");\n'+
+'  }catch(e){}\n'+
+'  // WebViewClient SSL error proceed\n'+
+'  try{\n'+
+'    var WebViewClient=Java.use("android.webkit.WebViewClient");\n'+
+'    WebViewClient.onReceivedSslError.implementation=function(v,h,e){h.proceed();};\n'+
+'    console.log("[+] WebViewClient.onReceivedSslError bypassed");\n'+
+'  }catch(e){}\n'+
+'});';
+
+  var rootScript='/* Universal Root Detection & Tamper Bypass (Frida) */\n'+
+'Java.perform(function(){\n'+
+'  console.log("[*] Root Cloaking Active for: '+appPkg+'");\n'+
+'  var File=Java.use("java.io.File");\n'+
+'  File.exists.implementation=function(){\n'+
+'    var p=this.getAbsolutePath();\n'+
+'    if(p.indexOf("su")!==-1||p.indexOf("magisk")!==-1||p.indexOf("busybox")!==-1||p.indexOf("Superuser")!==-1){\n'+
+'      console.log("[+] Hidden root artifact: "+p);\n'+
+'      return false;\n'+
+'    }\n'+
+'    return this.exists.call(this);\n'+
+'  };\n'+
+'  try{\n'+
+'    var String=Java.use("java.lang.String");\n'+
+'    var Runtime=Java.use("java.lang.Runtime");\n'+
+'    Runtime.exec.overload("java.lang.String").implementation=function(cmd){\n'+
+'      if(cmd.indexOf("su")!==-1||cmd.indexOf("which")!==-1){\n'+
+'        return Runtime.exec.call(this,"echo");\n'+
+'      }\n'+
+'      return Runtime.exec.call(this,cmd);\n'+
+'    };\n'+
+'  }catch(e){}\n'+
+'});';
+
+  var adbObjection='objection --gadget "'+appPkg+'" explore\n'+
+'# Inside objection session:\n'+
+'android sslpinning disable\n'+
+'android root disable\n'+
+'android intent launch_activity <exported_activity_name>';
+
+  var h='<div class="fc exp">'+
+    '<div class="fh" onclick="this.parentElement.classList.toggle(\'exp\')">'+
+      '<span class="sb sc2b">FRIDA</span>'+
+      '<span class="ft2">Universal SSL Pinning &amp; TrustManager Bypass Script</span>'+
+      '<span class="chv">&#x25BC;</span>'+
+    '</div>'+
+    '<div class="fb2">'+
+      '<div style="color:var(--ts);font-size:12px;margin-bottom:8px">Run command: <code style="color:#00ff9d">frida -U -f '+appPkg+' -l ssl_bypass.js</code></div>'+
+      '<div class="mb" style="max-height:220px;font-size:10.5px">'+eh(sslScript)+'</div>'+
+      '<button class="cb" data-copy="'+eh(sslScript)+'">&#x1F4CB; COPY SSL BYPASS SCRIPT</button>'+
+    '</div>'+
+  '</div>'+
+  '<div class="fc exp" style="margin-top:10px">'+
+    '<div class="fh" onclick="this.parentElement.classList.toggle(\'exp\')">'+
+      '<span class="sb sh2">FRIDA</span>'+
+      '<span class="ft2">Root Detection &amp; Su Binary Cloaking Hook</span>'+
+      '<span class="chv">&#x25BC;</span>'+
+    '</div>'+
+    '<div class="fb2">'+
+      '<div style="color:var(--ts);font-size:12px;margin-bottom:8px">Run command: <code style="color:#00ff9d">frida -U -f '+appPkg+' -l root_bypass.js</code></div>'+
+      '<div class="mb" style="max-height:220px;font-size:10.5px">'+eh(rootScript)+'</div>'+
+      '<button class="cb" data-copy="'+eh(rootScript)+'">&#x1F4CB; COPY ROOT BYPASS SCRIPT</button>'+
+    '</div>'+
+  '</div>'+
+  '<div class="fc exp" style="margin-top:10px">'+
+    '<div class="fh" onclick="this.parentElement.classList.toggle(\'exp\')">'+
+      '<span class="sb sm2">OBJECTION</span>'+
+      '<span class="ft2">Objection Quick-Start Exploitation Workflow</span>'+
+      '<span class="chv">&#x25BC;</span>'+
+    '</div>'+
+    '<div class="fb2">'+
+      '<div class="mb" style="max-height:160px;font-size:11px">'+eh(adbObjection)+'</div>'+
+      '<button class="cb" data-copy="'+eh(adbObjection)+'">&#x1F4CB; COPY OBJECTION CHEATSHEET</button>'+
+    '</div>'+
+  '</div>';
+
+  el.innerHTML=h;
+  bc(el);
+}
+
 function renderAll(){
+  renderFrida();
   var critVulns=findings.vulns.filter(function(v){return v.sev==='critical';}).length;
   var highVulns=findings.vulns.filter(function(v){return v.sev==='high';}).length;
   var medVulns=findings.vulns.filter(function(v){return v.sev==='medium';}).length;
