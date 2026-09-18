@@ -1475,6 +1475,61 @@ function instantKeywordSearch(customKws){
 /* MANIFEST AUDIT: COMPONENTS, DEEP LINKS, PERMISSIONS */
 
 
+
+/* ELF (.SO) NATIVE SHARED LIBRARY STRING EXTRACTOR */
+function extractElfStrings(buffer){
+  try{
+    var view=new DataView(buffer);
+    if(buffer.byteLength<52)return [];
+    if(view.getUint8(0)!==0x7f||view.getUint8(1)!==0x45||view.getUint8(2)!==0x4c||view.getUint8(3)!==0x46)return [];
+    var u8=new Uint8Array(buffer);
+    var strings=[],cur='';
+    var maxStrs=4000;
+    for(var i=0;i<u8.length&&strings.length<maxStrs;i++){
+      var b=u8[i];
+      if(b>=32&&b<=126){
+        cur+=String.fromCharCode(b);
+      }else{
+        if(cur.length>=6&&cur.length<=1200){
+          if(/[a-zA-Z0-9_\-\.\/:\?=&]/.test(cur)){
+            strings.push(cur);
+          }
+        }
+        cur='';
+      }
+    }
+    return strings;
+  }catch(e){console.warn('ELF parse err:',e);return [];}
+}
+
+/* NETWORK SECURITY CONFIG AUDITOR */
+function auditNetworkSecurityConfig(xml, fname){
+  if(/<certificates[^>]+src=["']user["']/i.test(xml)){
+    findings.vulns.push({
+      id:'v_nsc_user',
+      label:'Network Security Config: User Certificates Trusted (<certificates src="user"/>)',
+      provider:'NetworkConfig',
+      sev:'high',
+      cvss:'7.4',
+      desc:'Application explicitly trusts user-installed CA certificates, allowing transparent HTTPS interception with proxy tools (Burp Suite, OWASP ZAP) without rooting the device.',
+      file:fname,
+      matches:[{value:'<certificates src="user"/>',context:xml.slice(0,300).replace(/[\r\n]+/g,' '),line:1}]
+    });
+  }
+  if(/cleartextTrafficPermitted=["']true["']/i.test(xml)){
+    findings.vulns.push({
+      id:'v_nsc_clear',
+      label:'Network Security Config: Cleartext HTTP Permitted',
+      provider:'NetworkConfig',
+      sev:'high',
+      cvss:'7.5',
+      desc:'Network security configuration explicitly allows plaintext HTTP communication for specified domains, exposing credentials to local MITM network sniffing.',
+      file:fname,
+      matches:[{value:'cleartextTrafficPermitted="true"',context:xml.slice(0,300).replace(/[\r\n]+/g,' '),line:1}]
+    });
+  }
+}
+
 /* PURE JS DALVIK EXECUTABLE (.DEX) STRING POOL EXTRACTOR */
 function extractDexStrings(buffer){
   try{
@@ -2254,6 +2309,30 @@ function renderPermissions(){
   bc(el);
 }
 
+
+async function testFbUrl(btn, url){
+  var orig=btn.innerHTML;
+  btn.innerHTML='&#x23F3; PROBING...';
+  var target=url.replace(/\/+$/,'')+'/.json?shallow=true';
+  try{
+    var res=await fetch(target,{mode:'cors'});
+    if(res.status===200){
+      btn.innerHTML='&#x2705; VULNERABLE (200 OK)';
+      btn.style.color='#ff2d2d';
+      btn.style.borderColor='#ff2d2d';
+    }else if(res.status===401||res.status===403){
+      btn.innerHTML='&#x1F512; PROTECTED ('+res.status+')';
+      btn.style.color='#00d4ff';
+    }else{
+      btn.innerHTML='HTTP '+res.status;
+    }
+  }catch(e){
+    window.open(target,'_blank');
+    btn.innerHTML='&#x1F517; OPENED TAB';
+    setTimeout(function(){btn.innerHTML=orig;},2500);
+  }
+}
+
 function renderFirebase(){
   var el=document.getElementById('fbContent');
   if(!findings.firebase.length){el.innerHTML=emp('// NO FIREBASE CREDENTIALS DETECTED');return;}
@@ -2268,7 +2347,7 @@ function renderFirebase(){
   if(fbUrls.size||fbKeys.size){
     h+='<div class="fbhero"><div class="fbico">&#x1F525;</div><div style="flex:1"><h3>FIREBASE CREDENTIALS DETECTED</h3>';
     h+='<p style="color:var(--ts);font-size:.83rem">'+fbUrls.size+' Realtime DB URL(s) &bull; '+fbKeys.size+' API Key(s)</p>';
-    if(fbUrls.size){h+='<div class="fbulist">';fbUrls.forEach(function(u){h+='<div class="fbui"><span>'+eh(u)+'</span><button class="cb" data-copy="'+eh(u)+'">&#x1F4CB; COPY</button></div>';});h+='</div>';}
+    if(fbUrls.size){h+='<div class="fbulist">';fbUrls.forEach(function(u){h+='<div class="fbui"><span>'+eh(u)+'</span><div style="display:flex;gap:6px"><button class="cb" style="color:#00ff9d;border-color:rgba(0,255,157,.4)" onclick="testFbUrl(this,\''+eh(u)+'\')">&#x26A1; TEST ACCESS</button><button class="cb" data-copy="'+eh(u)+'">&#x1F4CB; COPY</button></div></div>';});h+='</div>';}
     if(fbKeys.size){h+='<div style="margin-top:9px;font-family:Orbitron,sans-serif;font-size:9px;color:var(--ts);letter-spacing:1px;margin-bottom:5px">// API KEYS</div><div class="fbulist">';fbKeys.forEach(function(k){h+='<div class="fbui"><span>'+eh(k)+'</span><button class="cb" data-copy="'+eh(k)+'">&#x1F4CB; COPY</button></div>';});h+='</div>';}
     h+='</div></div>';
   }
