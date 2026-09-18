@@ -402,6 +402,7 @@ footer{text-align:center;padding:38px 0 18px;color:var(--tm);font-size:10.5px;z-
 (function(){
 'use strict';
 var cf=null,allFiles=[],mfXml='';
+var cachedFiles=[];
 var findings={firebase:[],apikeys:[],secrets:[],keywords:[],urls:[]};
 
 /* WIRING */
@@ -443,11 +444,29 @@ fi.addEventListener('change',function(e){
   }
 });
 document.getElementById('aBtn').addEventListener('click',run);
-document.getElementById('kwinp').addEventListener('keydown',function(e){if(e.key==='Enter'&&cf)run();});
+
+var kwDebounceTimer=null;
+document.getElementById('kwinp').addEventListener('input',function(){
+  if(cachedFiles.length){
+    clearTimeout(kwDebounceTimer);
+    kwDebounceTimer=setTimeout(function(){
+      instantKeywordSearch();
+    },180);
+  }
+});
+document.getElementById('kwinp').addEventListener('keydown',function(e){
+  if(e.key==='Enter'){
+    if(cachedFiles.length)instantKeywordSearch();
+    else if(cf)run();
+  }
+});
 document.querySelectorAll('.pb').forEach(function(b){
   b.addEventListener('click',function(){
     var i=document.getElementById('kwinp'),c=i.value.trim();
-    i.value=c?(c.includes(b.dataset.v)?c:c+','+b.dataset.v):b.dataset.v;i.focus();
+    var val=b.dataset.v;
+    i.value=c?(c.includes(val)?c:c+','+val):val;
+    i.focus();
+    if(cachedFiles.length)instantKeywordSearch();
   });
 });
 document.querySelectorAll('.tb').forEach(function(b){b.addEventListener('click',function(){switchTab(b.dataset.tab);});});
@@ -455,12 +474,34 @@ document.getElementById('tfs').addEventListener('input',filterTree);
 document.getElementById('lsf').addEventListener('input',liveFilter);
 
 function loadF(f){
+  if(cf!==f){
+    cachedFiles=[];
+    allFiles=[];
+    mfXml='';
+  }
   cf=f;
   document.getElementById('fn').textContent=f.name;
   document.getElementById('fs').textContent=fmtB(f.size)+' — ready to scan';
   document.getElementById('fi2').classList.add('vis');
   document.getElementById('aBtn').disabled=false;
   document.getElementById('hud').innerHTML='<span class="hdot"></span><span>SYSTEM ONLINE</span><span class="hsep"></span><span class="hdot b"></span><span>60+ PATTERNS LOADED</span><span class="hsep"></span><span class="hdot y"></span><span>APK LOADED</span>';
+}
+
+function computeLineOffsets(t){
+  var o=[0];
+  for(var i=0;i<t.length;i++){
+    if(t.charCodeAt(i)===10)o.push(i+1);
+  }
+  return o;
+}
+function getLineNo(o,idx){
+  var l=0,r=o.length-1;
+  while(l<=r){
+    var m=(l+r)>>1;
+    if(o[m]<=idx)l=m+1;
+    else r=m-1;
+  }
+  return r+1;
 }
 
 /* PATTERNS */
@@ -535,46 +576,159 @@ var PATS=[
 
 ];
 
+var COMPILED_PATS=PATS.map(function(p){
+  try{
+    return {
+      id:p.id,
+      cat:p.cat,
+      label:p.label,
+      provider:p.provider,
+      sev:p.sev,
+      flags:p.flags,
+      src:p.src,
+      re:new RegExp(p.src,p.flags)
+    };
+  }catch(e){return null;}
+}).filter(Boolean);
+
 var SCAN_EXT=/\.(xml|json|js|ts|java|kt|smali|html|htm|txt|yaml|yml|properties|gradle|config|cfg|env|plist|strings|sh|py|rb|go|php|cs|cpp|c|h|dart|swift|m|toml|lock)$/i;
+
+/* INSTANT KEYWORD SEARCH */
+function instantKeywordSearch(customKws){
+  var kwVal=customKws!==undefined?customKws:document.getElementById('kwinp').value;
+  var kws=kwVal.split(',').map(function(s){return s.trim();}).filter(Boolean);
+
+  if(!cachedFiles.length){
+    if(cf)run();
+    return;
+  }
+
+  if(!kws.length){
+    findings.keywords=[];
+    document.getElementById('cKw').textContent='0';
+    document.getElementById('stK').textContent='0';
+    renderList('kwContent',[]);
+    return;
+  }
+
+  var kwRegexes=kws.map(function(kw){
+    try{
+      return {kw:kw,re:new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi')};
+    }catch(e){return null;}
+  }).filter(Boolean);
+
+  var newKwFindings=[];
+  for(var i=0;i<cachedFiles.length;i++){
+    var f=cachedFiles[i];
+    var text=f.text;
+    if(!text)continue;
+
+    for(var k=0;k<kwRegexes.length;k++){
+      var item=kwRegexes[k];
+      item.re.lastIndex=0;
+      var km,ka=[];
+      while((km=item.re.exec(text))!==null){
+        var s2=Math.max(0,km.index-80),e2=Math.min(text.length,km.index+km[0].length+80);
+        ka.push({
+          value:km[0],
+          context:text.slice(s2,e2).replace(/\n/g,' '),
+          line:getLineNo(f.offsets,km.index)
+        });
+        if(ka.length>=30)break;
+      }
+      if(ka.length){
+        newKwFindings.push({
+          id:'kw_'+item.kw,
+          label:'Keyword: "'+item.kw+'"',
+          provider:'Custom',
+          sev:'medium',
+          file:f.name,
+          matches:ka
+        });
+      }
+    }
+  }
+
+  findings.keywords=newKwFindings;
+  document.getElementById('cKw').textContent=newKwFindings.length;
+  var totalKwHits=newKwFindings.reduce(function(a,f){return a+f.matches.length;},0);
+  document.getElementById('stK').textContent=totalKwHits;
+  renderList('kwContent',newKwFindings);
+  switchTab('keywords');
+}
 
 /* MAIN RUN */
 async function run(){
   if(!cf)return;
   findings={firebase:[],apikeys:[],secrets:[],keywords:[],urls:[]};
-  allFiles=[];mfXml='';
   sp(0,'INITIALIZING SCAN ENGINE...');showProg(true);
   document.getElementById('stats').classList.remove('vis');
   document.getElementById('ra').className='';
   var kws=document.getElementById('kwinp').value.split(',').map(function(s){return s.trim();}).filter(Boolean);
+
   try{
-    sp(2,'LOADING APK ARCHIVE...');
-    var zip=await JSZip.loadAsync(cf);
-    var entries=Object.values(zip.files).filter(function(f){return !f.dir;});
-    allFiles=entries.map(function(f){return {name:f.name};});
-    document.getElementById('cFiles').textContent=entries.length;
-    document.getElementById('stS').textContent=entries.length;
-    sp(5,'LOADED '+entries.length+' FILES');
-    var sl=entries.filter(function(f){
-      return SCAN_EXT.test(f.name)||/manifest/i.test(f.name)||/google-services/i.test(f.name)||/\.env/i.test(f.name);
-    });
-    sp(7,sl.length+' SCANNABLE FILES IDENTIFIED');
-    for(var i=0;i<sl.length;i++){
-      var ent=sl[i];
-      sp(7+Math.round(i/sl.length*83),'SCANNING: '+ent.name.split('/').pop());
-      try{
-        var txt=await ent.async('text');
-        var nm=ent.name.toLowerCase();
-        if(nm==='androidmanifest.xml'||nm.endsWith('/androidmanifest.xml'))mfXml=txt;
-        scanF(ent.name,txt,kws);
-      }catch(ex){}
+    if(!cachedFiles.length){
+      sp(2,'LOADING APK ARCHIVE...');
+      var zip=await JSZip.loadAsync(cf);
+      var entries=Object.values(zip.files).filter(function(f){return !f.dir;});
+      allFiles=entries.map(function(f){return {name:f.name};});
+      document.getElementById('cFiles').textContent=entries.length;
+      document.getElementById('stS').textContent=entries.length;
+      sp(5,'ARCHIVE UNPACKED: '+entries.length+' TOTAL FILES');
+
+      var sl=entries.filter(function(f){
+        return SCAN_EXT.test(f.name)||/manifest/i.test(f.name)||/google-services/i.test(f.name)||/\.env/i.test(f.name);
+      });
+      sp(8,sl.length+' SCANNABLE FILES IDENTIFIED (CONCURRENT EXTRACT)');
+
+      cachedFiles=[];
+      var BATCH=30;
+      for(var i=0;i<sl.length;i+=BATCH){
+        var chunk=sl.slice(i,i+BATCH);
+        var texts=await Promise.all(chunk.map(function(ent){
+          return ent.async('text').catch(function(){return '';});
+        }));
+        for(var c=0;c<chunk.length;c++){
+          var ent=chunk[c];
+          var txt=texts[c];
+          if(!txt)continue;
+          var nm=ent.name.toLowerCase();
+          if(nm==='androidmanifest.xml'||nm.endsWith('/androidmanifest.xml'))mfXml=txt;
+          cachedFiles.push({
+            name:ent.name,
+            text:txt,
+            offsets:computeLineOffsets(txt)
+          });
+        }
+        var pct=8+Math.round((Math.min(i+BATCH,sl.length)/sl.length)*47);
+        sp(pct,'EXTRACTED '+Math.min(i+BATCH,sl.length)+'/'+sl.length+' FILES');
+        await sleep(0);
+      }
+    }else{
+      sp(10,'USING CACHED MEMORY FILES ('+cachedFiles.length+' FILES)...');
     }
-    sp(93,'COMPILING FINDINGS...');await sleep(80);
+
+    sp(56,'RUNNING 60+ PATTERNS ACROSS '+cachedFiles.length+' FILES...');
+    var lastUi=performance.now();
+    for(var i=0;i<cachedFiles.length;i++){
+      var fileObj=cachedFiles[i];
+      scanF(fileObj.name,fileObj.text,fileObj.offsets,kws);
+      if(performance.now()-lastUi>50||i===cachedFiles.length-1){
+        var pct=56+Math.round((i/cachedFiles.length)*38);
+        sp(pct,'ANALYZING: '+fileObj.name.split('/').pop());
+        lastUi=performance.now();
+        await sleep(0);
+      }
+    }
+
+    sp(95,'COMPILING FINDINGS...');await sleep(30);
     renderAll();
     var tot=findings.firebase.length+findings.apikeys.length+findings.secrets.length+findings.keywords.length;
     sp(100,'SCAN COMPLETE — '+tot+' FINDINGS');
-    await sleep(500);showProg(false);
+    await sleep(350);showProg(false);
     document.getElementById('stats').classList.add('vis');
     document.getElementById('ra').className='ra vis';
+    document.getElementById('hud').innerHTML='<span class="hdot"></span><span>SYSTEM ONLINE</span><span class="hsep"></span><span class="hdot" style="background:#00ff9d;box-shadow:0 0 7px #00ff9d"></span><span>⚡ MEMORY CACHE ACTIVE — INSTANT KEYWORD SEARCH</span>';
     animCounters();
   }catch(err){sp(0,'ERROR: '+err.message);console.error(err);}
 }
@@ -588,48 +742,52 @@ function animCounters(){
 }
 
 /* SCANNER */
-function scanF(fname,text,kws){
-  PATS.forEach(function(p){
-    if(p.cat==='url')return;
-    var re,m,hits=[];
-    try{re=new RegExp(p.src,p.flags);}catch(e){return;}
-    while((m=re.exec(text))!==null){
+function scanF(fname,text,offsets,kws){
+  for(var j=0;j<COMPILED_PATS.length;j++){
+    var p=COMPILED_PATS[j];
+    if(p.cat==='url')continue;
+    p.re.lastIndex=0;
+    var m,hits=[];
+    while((m=p.re.exec(text))!==null){
       var s=Math.max(0,m.index-65),e=Math.min(text.length,m.index+m[0].length+65);
-      hits.push({value:m[0],context:text.slice(s,e).replace(/\n/g,' '),line:lno(text,m.index)});
+      hits.push({value:m[0],context:text.slice(s,e).replace(/\n/g,' '),line:getLineNo(offsets,m.index)});
       if(hits.length>=15)break;
     }
-    if(!hits.length)return;
+    if(!hits.length)continue;
     var f={id:p.id,label:p.label,provider:p.provider,sev:p.sev,file:fname,matches:hits};
     if(p.cat==='firebase')findings.firebase.push(f);
     else if(p.cat==='apikey')findings.apikeys.push(f);
     else findings.secrets.push(f);
-  });
+  }
 
   /* URL bucket */
-  var up=PATS[PATS.length-1];
-  var ure,um,ua=[],us={};
-  try{ure=new RegExp(up.src,up.flags);}catch(e){ure=null;}
-  if(ure){
-    while((um=ure.exec(text))!==null){
+  var up=COMPILED_PATS[COMPILED_PATS.length-1];
+  if(up&&up.id==='url'){
+    up.re.lastIndex=0;
+    var um,ua=[],us={};
+    while((um=up.re.exec(text))!==null){
       var u=um[0];
       if(/firebase|appspot|googleapis/.test(u)||us[u])continue;
-      us[u]=1;ua.push({value:u,context:u,line:lno(text,um.index)});
+      us[u]=1;ua.push({value:u,context:u,line:getLineNo(offsets,um.index)});
       if(ua.length>=50)break;
     }
     if(ua.length)findings.urls.push({id:'url',label:'Endpoints',provider:'',sev:'info',file:fname,matches:ua});
   }
 
   /* Custom keywords */
-  kws.forEach(function(kw){
-    var kr,km,ka=[];
-    try{kr=new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi');}catch(e){return;}
-    while((km=kr.exec(text))!==null){
-      var s2=Math.max(0,km.index-80),e2=Math.min(text.length,km.index+km[0].length+80);
-      ka.push({value:km[0],context:text.slice(s2,e2).replace(/\n/g,' '),line:lno(text,km.index)});
-      if(ka.length>=25)break;
+  if(kws&&kws.length){
+    for(var k=0;k<kws.length;k++){
+      var kw=kws[k];
+      var kr,km,ka=[];
+      try{kr=new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi');}catch(e){continue;}
+      while((km=kr.exec(text))!==null){
+        var s2=Math.max(0,km.index-80),e2=Math.min(text.length,km.index+km[0].length+80);
+        ka.push({value:km[0],context:text.slice(s2,e2).replace(/\n/g,' '),line:getLineNo(offsets,km.index)});
+        if(ka.length>=25)break;
+      }
+      if(ka.length)findings.keywords.push({id:'kw_'+kw,label:'Keyword: "'+kw+'"',provider:'Custom',sev:'medium',file:fname,matches:ka});
     }
-    if(ka.length)findings.keywords.push({id:'kw_'+kw,label:'Keyword: "'+kw+'"',provider:'Custom',sev:'medium',file:fname,matches:ka});
-  });
+  }
 }
 
 /* RENDER */
